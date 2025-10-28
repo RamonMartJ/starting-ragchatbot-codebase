@@ -245,6 +245,28 @@ header h1 {
     color: var(--text-secondary);
 }
 
+/* Source Links - Clickeable links to lesson videos */
+.source-link {
+    color: #0066cc;
+    text-decoration: none;
+    border-bottom: 1px dotted #0066cc;
+    transition: all 0.2s ease;
+}
+
+.source-link:hover {
+    color: #0052a3;
+    border-bottom: 1px solid #0052a3;
+}
+
+.source-link:active {
+    color: #003d7a;
+}
+
+/* Source Text - Plain text for sources without links */
+.source-text {
+    color: var(--text-secondary);
+}
+
 /* Markdown formatting styles */
 .message-content h1,
 .message-content h2,

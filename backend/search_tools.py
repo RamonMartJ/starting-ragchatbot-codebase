@@ -86,31 +86,54 @@ class CourseSearchTool(Tool):
         return self._format_results(results)
     
     def _format_results(self, results: SearchResults) -> str:
-        """Format search results with course and lesson context"""
+        """
+        Format search results with course and lesson context.
+
+        Workflow:
+        1. Iterate through search results with metadata
+        2. Extract course title and lesson number from metadata
+        3. Retrieve lesson link from ChromaDB using VectorStore.get_lesson_link()
+        4. Build source dict with text (display) and url (clickable link)
+        5. Store sources as List[Dict] for frontend rendering
+
+        Returns:
+            Formatted string for Claude with context headers
+        """
         formatted = []
-        sources = []  # Track sources for the UI
-        
+        sources = []  # Track sources with URLs for the UI
+
         for doc, meta in zip(results.documents, results.metadata):
             course_title = meta.get('course_title', 'unknown')
             lesson_num = meta.get('lesson_number')
-            
-            # Build context header
+
+            # Build context header for Claude
             header = f"[{course_title}"
             if lesson_num is not None:
                 header += f" - Lesson {lesson_num}"
             header += "]"
-            
-            # Track source for the UI
-            source = course_title
+
+            # Build source text for UI display
+            source_text = course_title
             if lesson_num is not None:
-                source += f" - Lesson {lesson_num}"
-            sources.append(source)
-            
+                source_text += f" - Lesson {lesson_num}"
+
+            # Retrieve lesson link from VectorStore
+            lesson_link = None
+            if lesson_num is not None:
+                lesson_link = self.store.get_lesson_link(course_title, lesson_num)
+
+            # Store source as dict with text and optional URL
+            sources.append({
+                "text": source_text,
+                "url": lesson_link  # None if no link available
+            })
+
             formatted.append(f"{header}\n{doc}")
-        
-        # Store sources for retrieval
+
+        # Store sources for retrieval by ToolManager
+        # Now contains List[Dict[str, Optional[str]]]
         self.last_sources = sources
-        
+
         return "\n\n".join(formatted)
 
 class ToolManager:

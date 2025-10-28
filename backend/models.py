@@ -64,6 +64,25 @@ class CourseChunk(BaseModel):
 # These models define the API contract between frontend and backend.
 # Used for request validation, response serialization, and API documentation.
 
+class Source(BaseModel):
+    """
+    Represents a source citation with optional clickable link.
+
+    Workflow:
+    1. CourseSearchTool retrieves lesson links from ChromaDB
+    2. Each source includes text (display name) and optional URL
+    3. Frontend renders as clickable link if URL present, else plain text
+    4. Links open in new tab when clicked
+
+    Example:
+    {
+        "text": "Building Towards Computer Use - Lesson 4",
+        "url": "https://learn.deeplearning.ai/courses/.../lesson/..."
+    }
+    """
+    text: str                    # Display text for the source (e.g., "Course X - Lesson N")
+    url: Optional[str] = None    # Lesson video URL (None if no link available)
+
 class QueryRequest(BaseModel):
     """
     Request model for POST /api/query endpoint.
@@ -90,18 +109,21 @@ class QueryResponse(BaseModel):
     Workflow:
     1. RAGSystem processes query (retrieval + AI generation)
     2. Response includes AI-generated answer from Claude
-    3. sources list contains course/lesson references for citations
+    3. sources list contains course/lesson references with clickable links
     4. session_id returned to frontend for subsequent requests
 
     Example:
     {
         "answer": "Prompt caching retains results of processing...",
-        "sources": ["Course X - Lesson 4", "Course Y - Lesson 2"],
+        "sources": [
+            {"text": "Course X - Lesson 4", "url": "https://..."},
+            {"text": "Course Y - Lesson 2", "url": "https://..."}
+        ],
         "session_id": "session_1"
     }
     """
     answer: str           # AI-generated response from Claude
-    sources: List[str]    # List of source citations (e.g., "Course Title - Lesson N")
+    sources: List[Source] # List of source citations with optional URLs
     session_id: str       # Session ID for maintaining conversation context
 
 class CourseStats(BaseModel):
