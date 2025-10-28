@@ -10,7 +10,7 @@ import os
 
 from config import config
 from rag_system import RAGSystem
-from models import QueryRequest, QueryResponse, CourseStats
+from models import QueryRequest, QueryResponse, ArticleStats
 
 # ============================================================================
 # RAG SYSTEM INITIALIZATION
@@ -30,13 +30,13 @@ async def lifespan(app: FastAPI):
 
     Startup Phase (before yield):
     1. Check if ../docs directory exists
-    2. Load all course documents from folder
+    2. Load all article documents from folder
     3. DocumentProcessor parses each .txt file
-    4. Extract course metadata and lessons
-    5. Chunk lesson content (sentence-based, with overlap)
+    4. Extract article metadata (title, link)
+    5. Chunk article content (sentence-based, with overlap)
     6. Generate embeddings via sentence-transformers
-    7. Store in ChromaDB (course_catalog + course_content collections)
-    8. Print summary of loaded courses
+    7. Store in ChromaDB (article_catalog + article_content collections)
+    8. Print summary of loaded articles
 
     Shutdown Phase (after yield):
     - Currently just logs shutdown message
@@ -53,9 +53,9 @@ async def lifespan(app: FastAPI):
         print("Loading initial documents...")
         try:
             # Process all .txt files in docs folder
-            # Returns: (num_courses: int, num_chunks: int)
-            courses, chunks = rag_system.add_course_folder(docs_path, clear_existing=False)
-            print(f"Loaded {courses} courses with {chunks} chunks")
+            # Returns: (num_articles: int, num_chunks: int)
+            articles, chunks = rag_system.add_articles_folder(docs_path, clear_existing=False)
+            print(f"Loaded {articles} articles with {chunks} chunks")
         except Exception as e:
             print(f"Error loading documents: {e}")
 
@@ -149,30 +149,30 @@ async def query_documents(request: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/courses", response_model=CourseStats)
-async def get_course_stats():
+@app.get("/api/articles", response_model=ArticleStats)
+async def get_article_stats():
     """
-    Get statistics about loaded courses in the system.
+    Get statistics about loaded articles in the system.
 
     Workflow:
-    1. Frontend requests course stats on page load (sidebar display)
-    2. RAGSystem.get_course_analytics() queries VectorStore
-    3. VectorStore.get_course_count() counts documents in course_catalog
-    4. VectorStore.get_existing_course_titles() retrieves all course IDs
+    1. Frontend requests article stats on page load (sidebar display)
+    2. RAGSystem.get_article_analytics() queries VectorStore
+    3. VectorStore.get_article_count() counts documents in article_catalog
+    4. VectorStore.get_existing_article_titles() retrieves all article IDs
     5. Return statistics to frontend for display
 
     Returns:
-        CourseStats with total count and list of course titles
+        ArticleStats with total count and list of article titles
 
     Raises:
         HTTPException: 500 error if analytics retrieval fails
     """
     try:
-        # Query RAG system for course analytics
-        analytics = rag_system.get_course_analytics()
-        return CourseStats(
-            total_courses=analytics["total_courses"],
-            course_titles=analytics["course_titles"]
+        # Query RAG system for article analytics
+        analytics = rag_system.get_article_analytics()
+        return ArticleStats(
+            total_articles=analytics["total_articles"],
+            article_titles=analytics["article_titles"]
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
