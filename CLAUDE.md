@@ -276,3 +276,4 @@ rm -rf backend/chroma_db/
 - **API endpoints**: `backend/app.py:56-86`
 - Always use uv as a package manager, do NOT use pip at all.
 - use uv to run any Python files.
+- Add comments above every new functionality explaining workflow process and functionality.
