@@ -6,14 +6,14 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Course Materials Assistant</title>
-    <link rel="stylesheet" href="style.css?v=10">
+    <title>Asistente de Materiales del Curso</title>
+    <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Course Materials Assistant</h1>
-            <p class="subtitle">Ask questions about courses, instructors, and content</p>
+            <h1>Asistente de Materiales del Curso</h1>
+            <p class="subtitle">Haz preguntas sobre cursos, instructores y contenido</p>
         </header>
 
         <div class="main-content">
@@ -29,15 +29,15 @@
                 <!-- Course Stats -->
                 <div class="sidebar-section">
                     <details class="stats-collapsible">
-                        <summary class="stats-header">Courses</summary>
+                        <summary class="stats-header">Cursos</summary>
                         <div class="course-stats" id="courseStats">
                             <div class="stat-item">
-                                <span class="stat-label">Number of courses:</span>
+                                <span class="stat-label">Número de cursos:</span>
                                 <span class="stat-value" id="totalCourses">-</span>
                             </div>
                             <div class="stat-item">
                                 <div class="course-titles" id="courseTitles">
-                                    <span class="loading">Loading...</span>
+                                    <span class="loading">Cargando...</span>
                                 </div>
                             </div>
                         </div>
@@ -47,12 +47,12 @@
                 <!-- Suggested Questions -->
                 <div class="sidebar-section">
                     <details class="suggested-collapsible">
-                        <summary class="suggested-header">Try asking:</summary>
+                        <summary class="suggested-header">Prueba a preguntar:</summary>
                         <div class="suggested-items">
-                            <button class="suggested-item" data-question="What is the outline of the &quot;MCP: Build Rich-Context AI Apps with Anthropic&quot; course?">Outline of a course</button>
-                            <button class="suggested-item" data-question="Are there any courses that include a Chatbot implementation?">Courses about Chatbot</button>
-                            <button class="suggested-item" data-question="Are there any courses that explain what RAG is?">Courses explaining RAG</button>
-                            <button class="suggested-item" data-question="What was covered in lesson 5 of the MCP course?">Details of a course's lesson</button>
+                            <button class="suggested-item" data-question="¿Cuál es el esquema del curso &quot;MCP: Build Rich-Context AI Apps with Anthropic&quot;?">Esquema de un curso</button>
+                            <button class="suggested-item" data-question="¿Hay algún curso que incluya implementación de Chatbot?">Cursos sobre Chatbot</button>
+                            <button class="suggested-item" data-question="¿Hay algún curso que explique qué es RAG?">Cursos que explican RAG</button>
+                            <button class="suggested-item" data-question="¿Qué se cubrió en la lección 5 del curso MCP?">Detalles de una lección</button>
                         </div>
                     </details>
                 </div>
@@ -63,10 +63,10 @@
                 <div class="chat-container">
                     <div id="chatMessages" class="chat-messages"></div>
                     <div class="chat-input-container">
-                        <input 
-                            type="text" 
-                            id="chatInput" 
-                            placeholder="Ask about courses, lessons, or specific content..."
+                        <input
+                            type="text"
+                            id="chatInput"
+                            placeholder="Pregunta sobre cursos, lecciones o contenido específico..."
                             autocomplete="off"
                         >
                         <button id="sendButton">
@@ -83,6 +83,6 @@
 
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="script.js?v=10"></script>
+    <script src="script.js?v=11"></script>
 </body>
 </html>

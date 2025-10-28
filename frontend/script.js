@@ -76,7 +76,7 @@ async function sendMessage() {
             })
         });
 
-        if (!response.ok) throw new Error('Query failed');
+        if (!response.ok) throw new Error('La consulta falló');
 
         const data = await response.json();
         
@@ -151,7 +151,7 @@ function addMessage(content, type, sources = null, isWelcome = false) {
 
         html += `
             <details class="sources-collapsible">
-                <summary class="sources-header">Sources</summary>
+                <summary class="sources-header">Fuentes</summary>
                 <div class="sources-content">${sourceLinks}</div>
             </details>
         `;
@@ -206,15 +206,15 @@ function addCitationLinks(htmlContent, sources) {
 async function createNewSession() {
     currentSessionId = null;
     chatMessages.innerHTML = '';
-    addMessage('Welcome to the Course Materials Assistant! I can help you with questions about courses, lessons and specific content. What would you like to know?', 'assistant', null, true);
+    addMessage('¡Bienvenido al Asistente de Materiales del Curso! Puedo ayudarte con preguntas sobre cursos, lecciones y contenido específico. ¿Qué te gustaría saber?', 'assistant', null, true);
 }
 
 // Load course statistics
 async function loadCourseStats() {
     try {
-        console.log('Loading course stats...');
+        console.log('Cargando estadísticas de cursos...');
         const response = await fetch(`${API_URL}/courses`);
-        if (!response.ok) throw new Error('Failed to load course stats');
+        if (!response.ok) throw new Error('Error al cargar estadísticas de cursos');
         
         const data = await response.json();
         console.log('Course data received:', data);
@@ -231,18 +231,18 @@ async function loadCourseStats() {
                     .map(title => `<div class="course-title-item">${title}</div>`)
                     .join('');
             } else {
-                courseTitles.innerHTML = '<span class="no-courses">No courses available</span>';
+                courseTitles.innerHTML = '<span class="no-courses">No hay cursos disponibles</span>';
             }
         }
         
     } catch (error) {
-        console.error('Error loading course stats:', error);
+        console.error('Error al cargar estadísticas de cursos:', error);
         // Set default values on error
         if (totalCourses) {
             totalCourses.textContent = '0';
         }
         if (courseTitles) {
-            courseTitles.innerHTML = '<span class="error">Failed to load courses</span>';
+            courseTitles.innerHTML = '<span class="error">Error al cargar cursos</span>';
         }
     }
 }
