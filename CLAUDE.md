@@ -277,3 +277,4 @@ rm -rf backend/chroma_db/
 - Always use uv as a package manager, do NOT use pip at all.
 - use uv to run any Python files.
 - Add comments above every new functionality explaining workflow process and functionality.
+- No corras el fichero, más bien indícame cómo debo hacerlo yo.
