@@ -1,6 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore", message="resource_tracker: There appear to be.*")
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -12,8 +13,33 @@ import os
 from config import config
 from rag_system import RAGSystem
 
-# Initialize FastAPI app
-app = FastAPI(title="Course Materials RAG System", root_path="")
+# Initialize RAG system globally
+rag_system = RAGSystem(config)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events"""
+    # Startup: Load initial documents
+    docs_path = "../docs"
+    if os.path.exists(docs_path):
+        print("Loading initial documents...")
+        try:
+            courses, chunks = rag_system.add_course_folder(docs_path, clear_existing=False)
+            print(f"Loaded {courses} courses with {chunks} chunks")
+        except Exception as e:
+            print(f"Error loading documents: {e}")
+
+    yield
+
+    # Shutdown: cleanup code here if needed
+    print("Shutting down...")
+
+# Initialize FastAPI app with lifespan
+app = FastAPI(
+    title="Course Materials RAG System",
+    root_path="",
+    lifespan=lifespan
+)
 
 # Add trusted host middleware for proxy
 app.add_middleware(
@@ -30,9 +56,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
-
-# Initialize RAG system
-rag_system = RAGSystem(config)
 
 # Pydantic models for request/response
 class QueryRequest(BaseModel):
@@ -85,23 +108,8 @@ async def get_course_stats():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.on_event("startup")
-async def startup_event():
-    """Load initial documents on startup"""
-    docs_path = "../docs"
-    if os.path.exists(docs_path):
-        print("Loading initial documents...")
-        try:
-            courses, chunks = rag_system.add_course_folder(docs_path, clear_existing=False)
-            print(f"Loaded {courses} courses with {chunks} chunks")
-        except Exception as e:
-            print(f"Error loading documents: {e}")
-
 # Custom static file handler with no-cache headers for development
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import os
-from pathlib import Path
 
 
 class DevStaticFiles(StaticFiles):
