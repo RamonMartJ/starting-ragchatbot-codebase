@@ -17,82 +17,74 @@ class Tool(ABC):
         pass
 
 
-class CourseSearchTool(Tool):
-    """Tool for searching course content with semantic course name matching"""
-    
+class ArticleSearchTool(Tool):
+    """Tool for searching news article content with semantic title matching"""
+
     def __init__(self, vector_store: VectorStore):
         self.store = vector_store
         self.last_sources = []  # Track sources from last search
-    
+
     def get_tool_definition(self) -> Dict[str, Any]:
         """Return Anthropic tool definition for this tool"""
         return {
-            "name": "search_course_content",
-            "description": "Search course materials with smart course name matching and lesson filtering",
+            "name": "search_news_content",
+            "description": "Buscar en artículos de noticias con coincidencia semántica de títulos",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "query": {
-                        "type": "string", 
-                        "description": "What to search for in the course content"
-                    },
-                    "course_name": {
                         "type": "string",
-                        "description": "Course title (partial matches work, e.g. 'MCP', 'Introduction')"
+                        "description": "Qué buscar en el contenido de las noticias"
                     },
-                    "lesson_number": {
-                        "type": "integer",
-                        "description": "Specific lesson number to search within (e.g. 1, 2, 3)"
+                    "article_title": {
+                        "type": "string",
+                        "description": "Título del artículo para filtrar (coincidencias parciales funcionan)"
                     }
                 },
                 "required": ["query"]
             }
         }
-    
-    def execute(self, query: str, course_name: Optional[str] = None, lesson_number: Optional[int] = None) -> str:
+
+    def execute(self, query: str, article_title: Optional[str] = None) -> str:
         """
         Execute the search tool with given parameters.
-        
+
         Args:
             query: What to search for
-            course_name: Optional course filter
-            lesson_number: Optional lesson filter
-            
+            article_title: Optional article title filter
+
         Returns:
             Formatted search results or error message
         """
-        
+
         # Use the vector store's unified search interface
         results = self.store.search(
             query=query,
-            course_name=course_name,
-            lesson_number=lesson_number
+            article_title=article_title
         )
-        
+
         # Handle errors
         if results.error:
             return results.error
-        
+
         # Handle empty results
         if results.is_empty():
             filter_info = ""
-            if course_name:
-                filter_info += f" in course '{course_name}'"
-            if lesson_number:
-                filter_info += f" in lesson {lesson_number}"
-            return f"No relevant content found{filter_info}."
-        
+            if article_title:
+                filter_info += f" en artículo '{article_title}'"
+            return f"No se encontró contenido relevante{filter_info}."
+
         # Format and return results
         return self._format_results(results)
     
     def _format_results(self, results: SearchResults) -> str:
         """
-        Format search results with course and lesson context.
+        Format search results with article context.
 
         Workflow:
         1. Iterate through search results with metadata
-        2. Extract course title and lesson number from metadata
-        3. Retrieve lesson link from ChromaDB using VectorStore.get_lesson_link()
+        2. Extract article title from metadata
+        3. Retrieve article link from ChromaDB using VectorStore.get_article_link()
         4. Build source dict with text (display) and url (clickable link)
         5. Store sources as List[Dict] for frontend rendering
 
@@ -103,29 +95,21 @@ class CourseSearchTool(Tool):
         sources = []  # Track sources with URLs for the UI
 
         for idx, (doc, meta) in enumerate(zip(results.documents, results.metadata), start=1):
-            course_title = meta.get('course_title', 'unknown')
-            lesson_num = meta.get('lesson_number')
+            article_title = meta.get('article_title', 'unknown')
 
             # Build context header for Claude
-            header = f"[{course_title}"
-            if lesson_num is not None:
-                header += f" - Lesson {lesson_num}"
-            header += "]"
+            header = f"[Artículo: {article_title}]"
 
             # Build source text for UI display
-            source_text = course_title
-            if lesson_num is not None:
-                source_text += f" - Lesson {lesson_num}"
+            source_text = f"Artículo: {article_title}"
 
-            # Retrieve lesson link from VectorStore
-            lesson_link = None
-            if lesson_num is not None:
-                lesson_link = self.store.get_lesson_link(course_title, lesson_num)
+            # Retrieve article link from VectorStore
+            article_link = self.store.get_article_link(article_title)
 
             # Store source as dict with text, optional URL, and sequential index
             sources.append({
                 "text": source_text,
-                "url": lesson_link,  # None if no link available
+                "url": article_link,  # None if no link available
                 "index": idx  # Sequential index for academic citations [1], [2], etc.
             })
 

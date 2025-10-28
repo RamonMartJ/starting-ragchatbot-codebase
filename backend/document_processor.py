@@ -1,11 +1,11 @@
 import os
 import re
 from typing import List, Tuple
-from models import Course, Lesson, CourseChunk
+from models import Article, ArticleChunk
 
 
 class DocumentProcessor:
-    """Processes course documents and extracts structured information"""
+    """Processes news article documents and extracts structured information"""
 
     def __init__(self, chunk_size: int, chunk_overlap: int):
         self.chunk_size = chunk_size
@@ -93,178 +93,84 @@ class DocumentProcessor:
 
         return chunks
 
-    def process_course_document(
+    def process_article_document(
         self, file_path: str
-    ) -> Tuple[Course, List[CourseChunk]]:
+    ) -> Tuple[Article, List[ArticleChunk]]:
         """
-        Process a course document with expected format:
-        Line 1: Course Title: [title]
-        Line 2: Course Link: [url]
-        Line 3: Course Instructor: [instructor]
-        Following lines: Lesson markers and content
+        Process a news article document with expected format:
+        Line 1: Titular: [título]
+        Lines 2-N: Article content (summary and body)
+        Last line: Enlace: [url]
+
+        Workflow:
+        1. Extract article title from "Titular:" line
+        2. Extract article link from "Enlace:" line (if present)
+        3. All content in between is the article body
+        4. Chunk the article body using sentence-based chunking
+        5. Return Article object and list of ArticleChunks
         """
         content = self.read_file(file_path)
         filename = os.path.basename(file_path)
 
         lines = content.strip().split("\n")
 
-        # Extract course metadata from first three lines
-        course_title = filename  # Default fallback
-        course_link = None
-        instructor_name = "Unknown"
+        # Initialize article metadata
+        article_title = filename  # Default fallback
+        article_link = None
+        article_content_lines = []
 
-        # Parse course title from first line
-        if len(lines) >= 1 and lines[0].strip():
-            title_match = re.match(
-                r"^Course Title:\s*(.+)$", lines[0].strip(), re.IGNORECASE
-            )
-            if title_match:
-                course_title = title_match.group(1).strip()
-            else:
-                course_title = lines[0].strip()
-
-        # Parse remaining lines for course metadata
-        for i in range(1, min(len(lines), 4)):  # Check first 4 lines for metadata
-            line = lines[i].strip()
-            if not line:
-                continue
-
-            # Try to match course link
-            link_match = re.match(r"^Course Link:\s*(.+)$", line, re.IGNORECASE)
-            if link_match:
-                course_link = link_match.group(1).strip()
-                continue
-
-            # Try to match instructor
-            instructor_match = re.match(
-                r"^Course Instructor:\s*(.+)$", line, re.IGNORECASE
-            )
-            if instructor_match:
-                instructor_name = instructor_match.group(1).strip()
-                continue
-
-        # Create course object with title as ID
-        course = Course(
-            title=course_title,
-            course_link=course_link,
-            instructor=instructor_name if instructor_name != "Unknown" else None,
-        )
-
-        # Process lessons and create chunks
-        course_chunks = []
-        current_lesson = None
-        lesson_title = None
-        lesson_link = None
-        lesson_content = []
-        chunk_counter = 0
-
-        # Start processing from line 4 (after metadata)
-        start_index = 3
-        if len(lines) > 3 and not lines[3].strip():
-            start_index = 4  # Skip empty line after instructor
-
-        i = start_index
+        # Parse article structure
+        i = 0
         while i < len(lines):
-            line = lines[i]
+            line = lines[i].strip()
 
-            # Check for lesson markers (e.g., "Lesson 0: Introduction")
-            lesson_match = re.match(
-                r"^Lesson\s+(\d+):\s*(.+)$", line.strip(), re.IGNORECASE
-            )
+            # Check for title marker
+            title_match = re.match(r"^Titular:\s*(.+)$", line, re.IGNORECASE)
+            if title_match:
+                article_title = title_match.group(1).strip()
+                i += 1
+                continue
 
-            if lesson_match:
-                # Process previous lesson if it exists
-                if current_lesson is not None and lesson_content:
-                    lesson_text = "\n".join(lesson_content).strip()
-                    if lesson_text:
-                        # Add lesson to course
-                        lesson = Lesson(
-                            lesson_number=current_lesson,
-                            title=lesson_title,
-                            lesson_link=lesson_link,
-                        )
-                        course.lessons.append(lesson)
+            # Check for link marker
+            link_match = re.match(r"^Enlace:\s*(.+)$", line, re.IGNORECASE)
+            if link_match:
+                article_link = link_match.group(1).strip()
+                i += 1
+                continue
 
-                        # Create chunks for this lesson
-                        chunks = self.chunk_text(lesson_text)
-                        for idx, chunk in enumerate(chunks):
-                            # For the first chunk of each lesson, add lesson context
-                            if idx == 0:
-                                chunk_with_context = (
-                                    f"Lesson {current_lesson} content: {chunk}"
-                                )
-                            else:
-                                chunk_with_context = chunk
-
-                            course_chunk = CourseChunk(
-                                content=chunk_with_context,
-                                course_title=course.title,
-                                lesson_number=current_lesson,
-                                chunk_index=chunk_counter,
-                            )
-                            course_chunks.append(course_chunk)
-                            chunk_counter += 1
-
-                # Start new lesson
-                current_lesson = int(lesson_match.group(1))
-                lesson_title = lesson_match.group(2).strip()
-                lesson_link = None
-
-                # Check if next line is a lesson link
-                if i + 1 < len(lines):
-                    next_line = lines[i + 1].strip()
-                    link_match = re.match(
-                        r"^Lesson Link:\s*(.+)$", next_line, re.IGNORECASE
-                    )
-                    if link_match:
-                        lesson_link = link_match.group(1).strip()
-                        i += 1  # Skip the link line so it's not added to content
-
-                lesson_content = []
-            else:
-                # Add line to current lesson content
-                lesson_content.append(line)
+            # All other lines are article content
+            if line:  # Skip empty lines
+                article_content_lines.append(line)
 
             i += 1
 
-        # Process the last lesson
-        if current_lesson is not None and lesson_content:
-            lesson_text = "\n".join(lesson_content).strip()
-            if lesson_text:
-                lesson = Lesson(
-                    lesson_number=current_lesson,
-                    title=lesson_title,
-                    lesson_link=lesson_link,
-                )
-                course.lessons.append(lesson)
+        # Create Article object
+        article = Article(
+            title=article_title,
+            article_link=article_link,
+        )
 
-                chunks = self.chunk_text(lesson_text)
-                for idx, chunk in enumerate(chunks):
-                    # For any chunk of each lesson, add lesson context & course title
+        # Combine article content and create chunks
+        article_chunks = []
+        chunk_counter = 0
 
-                    chunk_with_context = f"Course {course_title} Lesson {current_lesson} content: {chunk}"
+        if article_content_lines:
+            # Join all content lines
+            article_text = "\n".join(article_content_lines).strip()
 
-                    course_chunk = CourseChunk(
-                        content=chunk_with_context,
-                        course_title=course.title,
-                        lesson_number=current_lesson,
-                        chunk_index=chunk_counter,
-                    )
-                    course_chunks.append(course_chunk)
-                    chunk_counter += 1
-
-        # If no lessons found, treat entire content as one document
-        if not course_chunks and len(lines) > 2:
-            remaining_content = "\n".join(lines[start_index:]).strip()
-            if remaining_content:
-                chunks = self.chunk_text(remaining_content)
+            if article_text:
+                # Create chunks using sentence-based chunking
+                chunks = self.chunk_text(article_text)
                 for chunk in chunks:
-                    course_chunk = CourseChunk(
-                        content=chunk,
-                        course_title=course.title,
+                    # Add article context to help with search relevance
+                    chunk_with_context = f"Artículo '{article_title}': {chunk}"
+
+                    article_chunk = ArticleChunk(
+                        content=chunk_with_context,
+                        article_title=article.title,
                         chunk_index=chunk_counter,
                     )
-                    course_chunks.append(course_chunk)
+                    article_chunks.append(article_chunk)
                     chunk_counter += 1
 
-        return course, course_chunks
+        return article, article_chunks

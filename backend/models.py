@@ -2,60 +2,48 @@ from typing import List, Dict, Optional
 from pydantic import BaseModel
 
 # ============================================================================
-# DOMAIN MODELS - Represent course structure and content
+# DOMAIN MODELS - Represent news article structure and content
 # ============================================================================
-# These models represent the core domain entities for course materials.
-# Used by DocumentProcessor to parse course documents and by VectorStore
+# These models represent the core domain entities for news articles.
+# Used by DocumentProcessor to parse article documents and by VectorStore
 # to organize content in ChromaDB collections.
 
-class Lesson(BaseModel):
+class Article(BaseModel):
     """
-    Represents a single lesson within a course.
+    Represents a news article with metadata.
 
     Workflow:
-    1. DocumentProcessor extracts lesson metadata from course text files
-    2. Lesson objects are stored in Course.lessons list
-    3. Metadata used for filtering searches by lesson number
-    """
-    lesson_number: int  # Sequential lesson number (0, 1, 2, etc.)
-    title: str          # Lesson title (e.g., "Introduction to RAG")
-    lesson_link: Optional[str] = None  # URL link to the lesson video/page
+    1. DocumentProcessor parses article document (title, link)
+    2. Article object created from document header
+    3. Article stored in VectorStore.article_catalog for semantic matching
+    4. Used to resolve partial article titles during search
 
-class Course(BaseModel):
+    Format expected in .txt files:
+    - Titular: [título]
+    - [contenido]
+    - Enlace: [url]
     """
-    Represents a complete course with metadata and its lessons.
+    title: str                          # Article headline (used as unique ID)
+    article_link: Optional[str] = None  # URL link to the original article
 
-    Workflow:
-    1. DocumentProcessor parses course document header (title, instructor, link)
-    2. Course object created with empty lessons list
-    3. Lessons added as document is processed
-    4. Course stored in VectorStore.course_catalog for semantic matching
-    5. Used to resolve partial course names (e.g., "MCP" → full title)
+class ArticleChunk(BaseModel):
     """
-    title: str                          # Full course title (used as unique ID)
-    course_link: Optional[str] = None   # URL link to the course homepage
-    instructor: Optional[str] = None    # Course instructor name
-    lessons: List[Lesson] = []          # List of lessons in chronological order
-
-class CourseChunk(BaseModel):
-    """
-    Represents a text chunk from course content for vector search.
+    Represents a text chunk from article content for vector search.
 
     Workflow:
-    1. DocumentProcessor.chunk_text() splits lesson content into chunks
-    2. Each chunk includes metadata (course_title, lesson_number, position)
-    3. Chunks stored in VectorStore.course_content collection
+    1. DocumentProcessor.chunk_text() splits article content into chunks
+    2. Each chunk includes metadata (article_title, chunk position)
+    3. Chunks stored in VectorStore.article_content collection
     4. Embeddings generated via sentence-transformers
     5. Used for semantic search during RAG queries
 
     Chunking strategy:
     - Sentence-based splitting (preserves semantic meaning)
     - ~800 characters per chunk with 100 char overlap
-    - First chunk of lesson includes "Lesson N content:" prefix for context
+    - Maintains article title context for filtering
     """
-    content: str                        # The actual text content with context
-    course_title: str                   # Which course this belongs to (for filtering)
-    lesson_number: Optional[int] = None # Which lesson (for filtering by lesson)
+    content: str                        # The actual text content
+    article_title: str                  # Which article this belongs to (for filtering)
     chunk_index: int                    # Sequential position in document
 
 # ============================================================================
@@ -69,7 +57,7 @@ class Source(BaseModel):
     Represents a source citation with optional clickable link.
 
     Workflow:
-    1. CourseSearchTool retrieves lesson links from ChromaDB
+    1. ArticleSearchTool retrieves article links from ChromaDB
     2. Each source includes text (display name), optional URL, and index
     3. Index used for academic-style citations [1], [2] in response text
     4. Frontend renders inline citations with tooltips showing full source
@@ -77,13 +65,13 @@ class Source(BaseModel):
 
     Example:
     {
-        "text": "Building Towards Computer Use - Lesson 4",
-        "url": "https://learn.deeplearning.ai/courses/.../lesson/...",
+        "text": "Artículo: La jefa del 112 admite que el Gobierno Central...",
+        "url": "https://www.antena3.com/noticias/...",
         "index": 1
     }
     """
-    text: str                    # Display text for the source (e.g., "Course X - Lesson N")
-    url: Optional[str] = None    # Lesson video URL (None if no link available)
+    text: str                    # Display text for the source (e.g., "Artículo: [título]")
+    url: Optional[str] = None    # Article URL (None if no link available)
     index: int                   # Citation number for academic-style references [1], [2]
 
 class QueryRequest(BaseModel):
@@ -129,25 +117,25 @@ class QueryResponse(BaseModel):
     sources: List[Source] # List of source citations with optional URLs
     session_id: str       # Session ID for maintaining conversation context
 
-class CourseStats(BaseModel):
+class ArticleStats(BaseModel):
     """
-    Response model for GET /api/courses endpoint.
+    Response model for GET /api/articles endpoint.
 
     Workflow:
-    1. Frontend requests course statistics on page load
-    2. RAGSystem.get_course_analytics() queries VectorStore
-    3. Returns count and titles of all loaded courses
+    1. Frontend requests article statistics on page load
+    2. RAGSystem.get_article_analytics() queries VectorStore
+    3. Returns count and titles of all loaded articles
     4. Frontend displays in sidebar for user reference
 
     Example:
     {
-        "total_courses": 4,
-        "course_titles": [
-            "Building Towards Computer Use with Anthropic",
-            "MCP: Build Rich-Context AI Apps",
+        "total_articles": 4,
+        "article_titles": [
+            "La jefa del 112 admite que el Gobierno Central...",
+            "Titular de otra noticia...",
             ...
         ]
     }
     """
-    total_courses: int       # Total number of courses in vector store
-    course_titles: List[str] # List of all course titles (chronological order)
+    total_articles: int       # Total number of articles in vector store
+    article_titles: List[str] # List of all article titles (chronological order)
