@@ -661,8 +661,8 @@ details[open] .suggested-header::before {
     transform: rotate(90deg);
 }
 
-/* Course Stats in Sidebar */
-.course-stats {
+/* Article Stats in Sidebar */
+.article-stats {
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -704,12 +704,12 @@ details[open] .suggested-header::before {
     margin-bottom: 0.5rem;
 }
 
-/* Course titles collapsible */
-.course-titles-collapsible {
+/* Article titles collapsible */
+.article-titles-collapsible {
     width: 100%;
 }
 
-.course-titles-header {
+.article-titles-header {
     cursor: pointer;
     font-size: 0.875rem;
     color: var(--text-secondary);
@@ -720,16 +720,16 @@ details[open] .suggested-header::before {
     user-select: none;
 }
 
-.course-titles-header:focus {
+.article-titles-header:focus {
     outline: none;
     color: var(--primary-color);
 }
 
-.course-titles-header::-webkit-details-marker {
+.article-titles-header::-webkit-details-marker {
     display: none;
 }
 
-.course-titles-header::before {
+.article-titles-header::before {
     content: '▶';
     display: inline-block;
     margin-right: 0.5rem;
@@ -737,17 +737,17 @@ details[open] .suggested-header::before {
     font-size: 0.75rem;
 }
 
-.course-titles-collapsible[open] .course-titles-header::before {
+.article-titles-collapsible[open] .article-titles-header::before {
     transform: rotate(90deg);
 }
 
-/* Course titles display */
-.course-titles {
+/* Article titles display */
+.article-titles {
     margin-top: 0.5rem;
     /* Remove max-height to show all titles without scrolling */
 }
 
-.course-title-item {
+.article-title-item {
     font-size: 0.85rem;
     color: var(--text-primary);
     padding: 0.5rem 0.25rem;
@@ -756,15 +756,15 @@ details[open] .suggested-header::before {
     line-height: 1.4;
 }
 
-.course-title-item:last-child {
+.article-title-item:last-child {
     border-bottom: none;
 }
 
-.course-title-item:first-child {
+.article-title-item:first-child {
     padding-top: 0.25rem;
 }
 
-.no-courses, .loading, .error {
+.no-articles, .loading, .error {
     font-size: 0.85rem;
     color: var(--text-secondary);
     font-style: italic;

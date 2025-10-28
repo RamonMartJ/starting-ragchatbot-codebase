@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton;
+let chatMessages, chatInput, sendButton, totalArticles, articleTitles, newChatButton;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,13 +13,13 @@ document.addEventListener('DOMContentLoaded', () => {
     chatMessages = document.getElementById('chatMessages');
     chatInput = document.getElementById('chatInput');
     sendButton = document.getElementById('sendButton');
-    totalCourses = document.getElementById('totalCourses');
-    courseTitles = document.getElementById('courseTitles');
+    totalArticles = document.getElementById('totalArticles');
+    articleTitles = document.getElementById('articleTitles');
     newChatButton = document.getElementById('newChatButton');
-    
+
     setupEventListeners();
     createNewSession();
-    loadCourseStats();
+    loadArticleStats();
 });
 
 // Event Listeners
@@ -206,43 +206,43 @@ function addCitationLinks(htmlContent, sources) {
 async function createNewSession() {
     currentSessionId = null;
     chatMessages.innerHTML = '';
-    addMessage('¡Bienvenido al Asistente de Materiales del Curso! Puedo ayudarte con preguntas sobre cursos, lecciones y contenido específico. ¿Qué te gustaría saber?', 'assistant', null, true);
+    addMessage('¡Bienvenido al Asistente de Noticias! Puedo ayudarte con preguntas sobre los artículos disponibles. ¿Qué te gustaría saber?', 'assistant', null, true);
 }
 
-// Load course statistics
-async function loadCourseStats() {
+// Load article statistics
+async function loadArticleStats() {
     try {
-        console.log('Cargando estadísticas de cursos...');
-        const response = await fetch(`${API_URL}/courses`);
-        if (!response.ok) throw new Error('Error al cargar estadísticas de cursos');
+        console.log('Cargando estadísticas de artículos...');
+        const response = await fetch(`${API_URL}/articles`);
+        if (!response.ok) throw new Error('Error al cargar estadísticas de artículos');
         
         const data = await response.json();
-        console.log('Course data received:', data);
-        
+        console.log('Article data received:', data);
+
         // Update stats in UI
-        if (totalCourses) {
-            totalCourses.textContent = data.total_courses;
+        if (totalArticles) {
+            totalArticles.textContent = data.total_articles;
         }
-        
-        // Update course titles
-        if (courseTitles) {
-            if (data.course_titles && data.course_titles.length > 0) {
-                courseTitles.innerHTML = data.course_titles
-                    .map(title => `<div class="course-title-item">${title}</div>`)
+
+        // Update article titles
+        if (articleTitles) {
+            if (data.article_titles && data.article_titles.length > 0) {
+                articleTitles.innerHTML = data.article_titles
+                    .map(title => `<div class="article-title-item">${title}</div>`)
                     .join('');
             } else {
-                courseTitles.innerHTML = '<span class="no-courses">No hay cursos disponibles</span>';
+                articleTitles.innerHTML = '<span class="no-articles">No hay noticias disponibles</span>';
             }
         }
-        
+
     } catch (error) {
-        console.error('Error al cargar estadísticas de cursos:', error);
+        console.error('Error al cargar estadísticas de artículos:', error);
         // Set default values on error
-        if (totalCourses) {
-            totalCourses.textContent = '0';
+        if (totalArticles) {
+            totalArticles.textContent = '0';
         }
-        if (courseTitles) {
-            courseTitles.innerHTML = '<span class="error">Error al cargar cursos</span>';
+        if (articleTitles) {
+            articleTitles.innerHTML = '<span class="error">Error al cargar noticias</span>';
         }
     }
 }
