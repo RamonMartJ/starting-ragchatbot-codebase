@@ -102,7 +102,7 @@ class CourseSearchTool(Tool):
         formatted = []
         sources = []  # Track sources with URLs for the UI
 
-        for doc, meta in zip(results.documents, results.metadata):
+        for idx, (doc, meta) in enumerate(zip(results.documents, results.metadata), start=1):
             course_title = meta.get('course_title', 'unknown')
             lesson_num = meta.get('lesson_number')
 
@@ -122,10 +122,11 @@ class CourseSearchTool(Tool):
             if lesson_num is not None:
                 lesson_link = self.store.get_lesson_link(course_title, lesson_num)
 
-            # Store source as dict with text and optional URL
+            # Store source as dict with text, optional URL, and sequential index
             sources.append({
                 "text": source_text,
-                "url": lesson_link  # None if no link available
+                "url": lesson_link,  # None if no link available
+                "index": idx  # Sequential index for academic citations [1], [2], etc.
             })
 
             formatted.append(f"{header}\n{doc}")

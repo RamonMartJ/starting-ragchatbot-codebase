@@ -70,18 +70,21 @@ class Source(BaseModel):
 
     Workflow:
     1. CourseSearchTool retrieves lesson links from ChromaDB
-    2. Each source includes text (display name) and optional URL
-    3. Frontend renders as clickable link if URL present, else plain text
-    4. Links open in new tab when clicked
+    2. Each source includes text (display name), optional URL, and index
+    3. Index used for academic-style citations [1], [2] in response text
+    4. Frontend renders inline citations with tooltips showing full source
+    5. Links open in new tab when clicked
 
     Example:
     {
         "text": "Building Towards Computer Use - Lesson 4",
-        "url": "https://learn.deeplearning.ai/courses/.../lesson/..."
+        "url": "https://learn.deeplearning.ai/courses/.../lesson/...",
+        "index": 1
     }
     """
     text: str                    # Display text for the source (e.g., "Course X - Lesson N")
     url: Optional[str] = None    # Lesson video URL (None if no link available)
+    index: int                   # Citation number for academic-style references [1], [2]
 
 class QueryRequest(BaseModel):
     """

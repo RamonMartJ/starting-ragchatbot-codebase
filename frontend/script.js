@@ -115,10 +115,15 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${type}${isWelcome ? ' welcome-message' : ''}`;
     messageDiv.id = `message-${messageId}`;
-    
+
     // Convert markdown to HTML for assistant messages
-    const displayContent = type === 'assistant' ? marked.parse(content) : escapeHtml(content);
-    
+    let displayContent = type === 'assistant' ? marked.parse(content) : escapeHtml(content);
+
+    // Add citation links with tooltips for assistant messages
+    if (type === 'assistant' && sources) {
+        displayContent = addCitationLinks(displayContent, sources);
+    }
+
     let html = `<div class="message-content">${displayContent}</div>`;
 
     // Render sources with clickable links if URLs are available
@@ -159,6 +164,36 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Helper function to add citation links with tooltips
+function addCitationLinks(htmlContent, sources) {
+    if (!sources || sources.length === 0) {
+        return htmlContent;
+    }
+
+    // Create a mapping of index to source text for tooltips
+    const sourceMap = {};
+    sources.forEach(source => {
+        if (source.index) {
+            sourceMap[source.index] = source.text;
+        }
+    });
+
+    // Replace [1], [2], etc. with citation links
+    // Use regex to find all [number] patterns
+    return htmlContent.replace(/\[(\d+)\]/g, (match, number) => {
+        const index = parseInt(number);
+        const tooltipText = sourceMap[index];
+
+        if (tooltipText) {
+            // Create citation link with tooltip
+            return `<span class="citation-link" data-tooltip="${escapeHtml(tooltipText)}">[${number}]</span>`;
+        }
+
+        // If no matching source, return original text
+        return match;
+    });
 }
 
 // Removed removeMessage function - no longer needed since we handle loading differently

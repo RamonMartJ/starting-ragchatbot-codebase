@@ -326,6 +326,95 @@ header h1 {
     border: 1px solid var(--border-color);
 }
 
+/* Citation Links - Academic-style inline references with tooltips */
+.citation-link {
+    display: inline-block;
+    position: relative;
+    color: var(--primary-color);
+    font-size: 0.75em;
+    vertical-align: super;
+    font-weight: 600;
+    cursor: help;
+    transition: color 0.2s ease;
+    margin: 0 0.1em;
+}
+
+/* Hover effect for citation */
+.citation-link:hover {
+    color: var(--primary-hover);
+}
+
+/* Tooltip styling using ::after pseudo-element */
+.citation-link::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+
+    /* Visual styling */
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 400;
+    white-space: nowrap;
+
+    /* Shadow and border */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+
+    /* Initially hidden */
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+
+    /* Smooth transition */
+    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+
+    /* Prevent line breaking */
+    line-height: 1.3;
+
+    /* Z-index to appear above other content */
+    z-index: 1000;
+}
+
+/* Tooltip arrow */
+.citation-link::before {
+    content: "";
+    position: absolute;
+    bottom: calc(120% - 6px);
+    left: 50%;
+    transform: translateX(-50%);
+
+    /* Arrow shape */
+    border: 6px solid transparent;
+    border-top-color: var(--surface-hover);
+
+    /* Initially hidden */
+    opacity: 0;
+    visibility: hidden;
+
+    /* Smooth transition */
+    transition: opacity 0.3s ease, visibility 0.3s;
+
+    /* Z-index */
+    z-index: 1001;
+}
+
+/* Show tooltip on hover */
+.citation-link:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.citation-link:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
 /* Markdown formatting styles */
 .message-content h1,
 .message-content h2,
