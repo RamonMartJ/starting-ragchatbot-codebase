@@ -133,8 +133,23 @@ function addMessage(content, type, sources = null, isWelcome = false) {
 
     // Render sources with clickable links if URLs are available
     if (sources && sources.length > 0) {
-        // Convert sources to HTML: modern badge-style links or plain text badges
-        const sourceLinks = sources.map(source => {
+        // Remove duplicate sources by creating a Map with unique text as key
+        const uniqueSourcesMap = new Map();
+        sources.forEach(source => {
+            let key;
+            if (typeof source === 'object' && source.text) {
+                key = source.text;
+            } else {
+                key = source;
+            }
+            // Only add if not already present (keeps first occurrence)
+            if (!uniqueSourcesMap.has(key)) {
+                uniqueSourcesMap.set(key, source);
+            }
+        });
+
+        // Convert unique sources to HTML: modern badge-style links or plain text badges
+        const sourceLinks = Array.from(uniqueSourcesMap.values()).map(source => {
             // Check if source is an object with text and url (new format)
             if (typeof source === 'object' && source.text) {
                 if (source.url) {
