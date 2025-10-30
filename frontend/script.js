@@ -3,6 +3,7 @@ const API_URL = '/api';
 
 // Global state
 let currentSessionId = null;
+let isLoading = false; // Track if a query is currently being processed
 
 // DOM elements
 let chatMessages, chatInput, sendButton, totalArticles, articleTitles, newChatButton;
@@ -27,7 +28,9 @@ function setupEventListeners() {
     // Chat functionality
     sendButton.addEventListener('click', sendMessage);
     chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
+        if (e.key === 'Enter' && !isLoading) {
+            sendMessage();
+        }
     });
 
     // New Chat button - clears conversation and starts fresh session
@@ -51,10 +54,28 @@ async function sendMessage() {
     const query = chatInput.value.trim();
     if (!query) return;
 
-    // Disable input
+    // Prevent multiple simultaneous queries
+    if (isLoading) {
+        console.log('Ya hay una consulta en curso, ignorando nueva petición');
+        return;
+    }
+
+    // Mark as loading and disable all inputs
+    isLoading = true;
     chatInput.value = '';
     chatInput.disabled = true;
     sendButton.disabled = true;
+
+    // Update button text to show loading state
+    const originalButtonText = sendButton.textContent;
+    sendButton.textContent = 'Cargando...';
+
+    // Disable suggested question buttons
+    document.querySelectorAll('.suggested-item').forEach(button => {
+        button.classList.add('disabled');
+        button.style.pointerEvents = 'none';
+        button.style.opacity = '0.5';
+    });
 
     // Add user message
     addMessage(query, 'user');
@@ -79,7 +100,7 @@ async function sendMessage() {
         if (!response.ok) throw new Error('La consulta falló');
 
         const data = await response.json();
-        
+
         // Update session ID if new
         if (!currentSessionId) {
             currentSessionId = data.session_id;
@@ -94,8 +115,19 @@ async function sendMessage() {
         loadingMessage.remove();
         addMessage(`Error: ${error.message}`, 'assistant');
     } finally {
+        // Re-enable all inputs
+        isLoading = false;
         chatInput.disabled = false;
         sendButton.disabled = false;
+        sendButton.textContent = originalButtonText;
+
+        // Re-enable suggested question buttons
+        document.querySelectorAll('.suggested-item').forEach(button => {
+            button.classList.remove('disabled');
+            button.style.pointerEvents = 'auto';
+            button.style.opacity = '1';
+        });
+
         chatInput.focus();
     }
 }
