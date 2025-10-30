@@ -4,6 +4,7 @@ const API_URL = '/api';
 // Global state
 let currentSessionId = null;
 let isLoading = false; // Track if a query is currently being processed
+let originalButtonHTML = ''; // Store original button HTML with icon
 
 // DOM elements
 let chatMessages, chatInput, sendButton, totalArticles, articleTitles, newChatButton;
@@ -17,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     totalArticles = document.getElementById('totalArticles');
     articleTitles = document.getElementById('articleTitles');
     newChatButton = document.getElementById('newChatButton');
+
+    // Capture original button HTML once (with SVG icon)
+    originalButtonHTML = sendButton.innerHTML;
 
     setupEventListeners();
     createNewSession();
@@ -66,9 +70,8 @@ async function sendMessage() {
     chatInput.disabled = true;
     sendButton.disabled = true;
 
-    // Update button text to show loading state
-    const originalButtonText = sendButton.textContent;
-    sendButton.textContent = 'Cargando...';
+    // Update button HTML to show loading state
+    sendButton.innerHTML = 'Cargando...';
 
     // Disable suggested question buttons
     document.querySelectorAll('.suggested-item').forEach(button => {
@@ -119,7 +122,7 @@ async function sendMessage() {
         isLoading = false;
         chatInput.disabled = false;
         sendButton.disabled = false;
-        sendButton.textContent = originalButtonText;
+        sendButton.innerHTML = originalButtonHTML;
 
         // Re-enable suggested question buttons
         document.querySelectorAll('.suggested-item').forEach(button => {
