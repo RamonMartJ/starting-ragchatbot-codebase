@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from abc import ABC, abstractmethod
 from vector_store import VectorStore, SearchResults
 
@@ -120,6 +120,308 @@ class ArticleSearchTool(Tool):
         self.last_sources = sources
 
         return "\n\n".join(formatted)
+
+
+class PeopleSearchTool(Tool):
+    """
+    Tool for searching and managing people mentioned in news articles.
+
+    Funcionalidad:
+    - Listar personas mencionadas en un artículo específico
+    - Buscar artículos que mencionan una persona determinada
+    - Obtener detalles completos de una persona
+    - Buscar personas por cargo/rol (ej: todos los periodistas)
+    """
+
+    def __init__(self, vector_store: VectorStore):
+        self.store = vector_store
+        self.last_sources = []  # Track sources from last search
+
+    def get_tool_definition(self) -> Dict[str, Any]:
+        """Return Anthropic tool definition for this tool"""
+        return {
+            "name": "search_people_in_articles",
+            "description": "Buscar personas mencionadas en artículos de noticias. Sin parámetros: devuelve todas las personas ordenadas por frecuencia de aparición. Con parámetros: permite listar personas de un artículo específico, buscar artículos por persona, o encontrar personas por cargo/rol.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "article_title": {
+                        "type": "string",
+                        "description": "Título del artículo para listar todas las personas mencionadas (opcional)"
+                    },
+                    "person_name": {
+                        "type": "string",
+                        "description": "Nombre de la persona para buscar en qué artículos aparece (opcional)"
+                    },
+                    "role": {
+                        "type": "string",
+                        "description": "Cargo o rol para buscar personas (ej: 'Periodista', 'Presidente') (opcional)"
+                    }
+                },
+                "required": []  # All parameters are optional - no params returns all people by frequency
+            }
+        }
+
+    def execute(
+        self,
+        article_title: Optional[str] = None,
+        person_name: Optional[str] = None,
+        role: Optional[str] = None
+    ) -> str:
+        """
+        Execute the people search tool with given parameters.
+
+        Workflow:
+        1. If no parameters: Return all people ordered by frequency
+        2. If article_title provided: List all people in that article
+        3. If person_name provided: Find all articles mentioning that person
+        4. If role provided: Find all people with that role across articles
+        5. If multiple params: Combine results
+        6. Store sources for UI display
+
+        Args:
+            article_title: Optional article title to filter by
+            person_name: Optional person name to search for
+            role: Optional role/cargo to search for
+
+        Returns:
+            Formatted results with person information and article context
+        """
+        print(f"[DEBUG PeopleTool] Execute called with: article_title={article_title}, person_name={person_name}, role={role}")
+
+        # Reset sources for new search
+        self.last_sources = []
+
+        # Case 0: No parameters provided - return all people by frequency
+        if not article_title and not person_name and not role:
+            print(f"[DEBUG PeopleTool] No parameters - returning all people by frequency")
+            all_people = self.store.get_all_people_with_frequency()
+            if all_people:
+                return self._format_all_people(all_people)
+            else:
+                return "No se encontraron personas registradas en las noticias."
+
+        results = []
+
+        # Case 1: List people from a specific article
+        if article_title:
+            print(f"[DEBUG PeopleTool] Searching people in article: {article_title}")
+            people_list = self.store.get_people_from_article(article_title)
+            print(f"[DEBUG PeopleTool] Found {len(people_list)} people")
+            if people_list:
+                article_link = self.store.get_article_link(article_title)
+                result = self._format_people_in_article(article_title, article_link, people_list)
+                results.append(result)
+
+                # Store source for UI
+                self.last_sources.append({
+                    "text": f"Personas en: {article_title}",
+                    "url": article_link,
+                    "index": len(self.last_sources) + 1
+                })
+            else:
+                print(f"[WARNING PeopleTool] No people found in article '{article_title}'")
+                return f"No se encontraron personas registradas en el artículo '{article_title}'."
+
+        # Case 2: Find articles mentioning a specific person
+        if person_name:
+            print(f"[DEBUG PeopleTool] Searching articles mentioning: {person_name}")
+            articles = self.store.find_articles_by_person(person_name)
+            print(f"[DEBUG PeopleTool] Found {len(articles)} articles")
+            if articles:
+                for article in articles:
+                    # Get people details from each article
+                    people_list = self.store.get_people_from_article(article['title'])
+                    # Filter to only show the requested person
+                    matching_person = [p for p in people_list if person_name.lower() in p.get('nombre', '').lower()]
+
+                    if matching_person:
+                        result = self._format_person_in_context(
+                            matching_person[0],
+                            article['title'],
+                            article.get('link')
+                        )
+                        results.append(result)
+
+                        # Store source for UI
+                        self.last_sources.append({
+                            "text": f"{person_name} en: {article['title']}",
+                            "url": article.get('link'),
+                            "index": len(self.last_sources) + 1
+                        })
+            else:
+                print(f"[WARNING PeopleTool] No articles found mentioning '{person_name}'")
+                return f"No se encontraron artículos que mencionen a '{person_name}'."
+
+        # Case 3: Find people by role
+        if role:
+            print(f"[DEBUG PeopleTool] Searching people with role: {role}")
+            people = self.store.find_people_by_role(role)
+            print(f"[DEBUG PeopleTool] Found {len(people)} people with role")
+            if people:
+                result = self._format_people_by_role(role, people)
+                results.append(result)
+
+                # Store sources for each person's article
+                for person in people:
+                    self.last_sources.append({
+                        "text": f"{person.get('nombre')} en: {person.get('article_title')}",
+                        "url": person.get('article_link'),
+                        "index": len(self.last_sources) + 1
+                    })
+            else:
+                print(f"[WARNING PeopleTool] No people found with role '{role}'")
+                return f"No se encontraron personas con el cargo '{role}'."
+
+        final_result = "\n\n".join(results) if results else "No se encontraron resultados."
+        print(f"[DEBUG PeopleTool] Returning {len(results)} results, {len(self.last_sources)} sources")
+        return final_result
+
+    def _format_people_in_article(
+        self,
+        article_title: str,
+        article_link: Optional[str],
+        people: List[Dict[str, Any]]
+    ) -> str:
+        """
+        Format list of people mentioned in an article.
+
+        Returns:
+            Formatted string with article info and people list
+        """
+        lines = [f"[Artículo: {article_title}]"]
+        if article_link:
+            lines.append(f"Enlace: {article_link}")
+        lines.append(f"\nPersonas mencionadas ({len(people)}):")
+
+        for person in people:
+            lines.append(f"- {person.get('nombre')}")
+            if person.get('cargo'):
+                lines.append(f"  Cargo: {person.get('cargo')}")
+            if person.get('organizacion'):
+                lines.append(f"  Organización: {person.get('organizacion')}")
+            if person.get('datos_interes'):
+                lines.append(f"  Datos: {person.get('datos_interes')}")
+
+        return "\n".join(lines)
+
+    def _format_person_in_context(
+        self,
+        person: Dict[str, Any],
+        article_title: str,
+        article_link: Optional[str]
+    ) -> str:
+        """
+        Format a person's information with article context.
+
+        Returns:
+            Formatted string with person details and article reference
+        """
+        lines = [f"[Persona: {person.get('nombre')}]"]
+        lines.append(f"Artículo: {article_title}")
+        if article_link:
+            lines.append(f"Enlace: {article_link}")
+
+        if person.get('cargo'):
+            lines.append(f"Cargo: {person.get('cargo')}")
+        if person.get('organizacion'):
+            lines.append(f"Organización: {person.get('organizacion')}")
+        if person.get('datos_interes'):
+            lines.append(f"Datos de interés: {person.get('datos_interes')}")
+
+        return "\n".join(lines)
+
+    def _format_people_by_role(self, role: str, people: List[Dict[str, Any]]) -> str:
+        """
+        Format list of people filtered by role.
+
+        Returns:
+            Formatted string with people grouped by role
+        """
+        lines = [f"[Personas con cargo: {role}]"]
+        lines.append(f"Total encontradas: {len(people)}\n")
+
+        for person in people:
+            lines.append(f"- {person.get('nombre')}")
+            if person.get('organizacion'):
+                lines.append(f"  Organización: {person.get('organizacion')}")
+            lines.append(f"  Artículo: {person.get('article_title')}")
+            if person.get('article_link'):
+                lines.append(f"  Enlace: {person.get('article_link')}")
+            if person.get('datos_interes'):
+                lines.append(f"  Datos: {person.get('datos_interes')}")
+            lines.append("")  # Empty line between people
+
+        return "\n".join(lines)
+
+    def _format_all_people(self, people: List[Dict[str, Any]]) -> str:
+        """
+        Format all people ordered by frequency of appearance.
+
+        Workflow:
+        1. Create header with total count
+        2. For each person (already sorted by frequency):
+           - Show name and frequency
+           - List unique roles and organizations
+           - List articles where they appear
+           - Add interesting facts
+        3. Generate sources for UI with article links
+
+        Args:
+            people: List of people with frequency data (from VectorStore)
+
+        Returns:
+            Formatted string with all people information
+        """
+        lines = ["[Todas las Personas Mencionadas]"]
+        lines.append(f"Total de personas: {len(people)}\n")
+
+        for person in people:
+            nombre = person.get('nombre')
+            frecuencia = person.get('frecuencia', 0)
+            cargos = person.get('cargos', [])
+            organizaciones = person.get('organizaciones', [])
+            articulos = person.get('articulos', [])
+            datos = person.get('datos_interes', [])
+
+            # Person header with frequency
+            lines.append(f"- {nombre} (mencionado en {frecuencia} artículo{'s' if frecuencia > 1 else ''})")
+
+            # Show roles
+            if cargos:
+                lines.append(f"  Cargo(s): {', '.join(cargos)}")
+
+            # Show organizations
+            if organizaciones:
+                lines.append(f"  Organización(es): {', '.join(organizaciones)}")
+
+            # Show articles
+            if articulos:
+                lines.append(f"  Aparece en:")
+                for idx, articulo in enumerate(articulos, 1):
+                    article_title = articulo.get('title')
+                    article_link = articulo.get('link')
+
+                    lines.append(f"    {idx}. {article_title}")
+
+                    # Store source for UI
+                    source_idx = len(self.last_sources) + 1
+                    self.last_sources.append({
+                        "text": f"{nombre} en: {article_title}",
+                        "url": article_link,
+                        "index": source_idx
+                    })
+
+            # Show interesting facts
+            if datos:
+                lines.append(f"  Datos de interés:")
+                for idx, dato in enumerate(datos, 1):
+                    lines.append(f"    - {dato}")
+
+            lines.append("")  # Empty line between people
+
+        return "\n".join(lines)
+
 
 class ToolManager:
     """Manages available tools for the AI"""

@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from models import Article, ArticleChunk
 from sentence_transformers import SentenceTransformer
+import json
 
 @dataclass
 class SearchResults:
@@ -121,17 +122,35 @@ class VectorStore:
         return {"article_title": article_title}
     
     def add_article_metadata(self, article: Article):
-        """Add article information to the catalog for semantic search"""
+        """
+        Add article information to the catalog for semantic search.
+
+        Workflow:
+        1. Serialize people list to JSON string for ChromaDB storage
+        2. Store article metadata including title, link, and people
+        3. Use article title as unique ID for fast lookup
+
+        Args:
+            article: Article object with metadata and people list
+        """
         article_text = article.title
+
+        # Serialize people list to JSON for storage
+        people_json = json.dumps([p.dict() for p in article.people]) if article.people else "[]"
+
+        print(f"[DEBUG VectorStore] Adding article: {article.title}")
+        print(f"[DEBUG VectorStore] People JSON ({len(article.people)} people): {people_json[:100]}...")
 
         self.article_catalog.add(
             documents=[article_text],
             metadatas=[{
                 "title": article.title,
                 "article_link": article.article_link,
+                "people": people_json  # Store as JSON string
             }],
             ids=[article.title]
         )
+        print(f"[DEBUG VectorStore] Successfully added to article_catalog")
 
     def add_article_content(self, chunks: List[ArticleChunk]):
         """Add article content chunks to the vector store"""
@@ -209,4 +228,213 @@ class VectorStore:
         except Exception as e:
             print(f"Error getting article link: {e}")
             return None
-    
+
+    def get_people_from_article(self, article_title: str) -> List[Dict[str, Any]]:
+        """
+        Get all people mentioned in a specific article.
+
+        Workflow:
+        1. Retrieve article metadata from article_catalog using title as ID
+        2. Deserialize people JSON string to list of dictionaries
+        3. Return list of people with all their fields
+
+        Args:
+            article_title: Title of the article
+
+        Returns:
+            List of dictionaries with person information
+        """
+        try:
+            # Get article by ID (title is the ID)
+            results = self.article_catalog.get(ids=[article_title])
+            if results and 'metadatas' in results and results['metadatas']:
+                metadata = results['metadatas'][0]
+                people_json = metadata.get('people', '[]')
+                people_list = json.loads(people_json)
+                return people_list
+            return []
+        except Exception as e:
+            print(f"Error getting people from article: {e}")
+            return []
+
+    def find_articles_by_person(self, person_name: str) -> List[Dict[str, str]]:
+        """
+        Find all articles that mention a specific person.
+
+        Workflow:
+        1. Get all articles from article_catalog
+        2. For each article, deserialize people JSON
+        3. Check if person_name matches any person (case-insensitive)
+        4. Return list of matching articles with title and link
+
+        Args:
+            person_name: Name of the person to search for
+
+        Returns:
+            List of dictionaries with 'title' and 'link' keys
+        """
+        try:
+            matching_articles = []
+            # Get all articles
+            all_articles = self.article_catalog.get()
+
+            if all_articles and 'metadatas' in all_articles:
+                for metadata in all_articles['metadatas']:
+                    people_json = metadata.get('people', '[]')
+                    people_list = json.loads(people_json)
+
+                    # Check if person_name matches any person in this article
+                    for person in people_list:
+                        if person_name.lower() in person.get('nombre', '').lower():
+                            matching_articles.append({
+                                'title': metadata.get('title'),
+                                'link': metadata.get('article_link')
+                            })
+                            break  # Avoid adding same article multiple times
+
+            return matching_articles
+        except Exception as e:
+            print(f"Error finding articles by person: {e}")
+            return []
+
+    def find_people_by_role(self, role: str) -> List[Dict[str, Any]]:
+        """
+        Find all people with a specific role/cargo across all articles.
+
+        Workflow:
+        1. Get all articles from article_catalog
+        2. For each article, deserialize people JSON
+        3. Check if role matches person's cargo (case-insensitive)
+        4. Return list of matching people with article context
+
+        Args:
+            role: Role/cargo to search for (e.g., "Periodista", "Presidente")
+
+        Returns:
+            List of dictionaries with person info and article_title
+        """
+        try:
+            matching_people = []
+            # Get all articles
+            all_articles = self.article_catalog.get()
+
+            if all_articles and 'metadatas' in all_articles:
+                for metadata in all_articles['metadatas']:
+                    people_json = metadata.get('people', '[]')
+                    people_list = json.loads(people_json)
+                    article_title = metadata.get('title')
+
+                    # Check if role matches any person's cargo in this article
+                    for person in people_list:
+                        person_cargo = person.get('cargo', '')
+                        if person_cargo and role.lower() in person_cargo.lower():
+                            # Add article context to person info
+                            person_with_context = person.copy()
+                            person_with_context['article_title'] = article_title
+                            person_with_context['article_link'] = metadata.get('article_link')
+                            matching_people.append(person_with_context)
+
+            return matching_people
+        except Exception as e:
+            print(f"Error finding people by role: {e}")
+            return []
+
+    def get_all_people_with_frequency(self) -> List[Dict[str, Any]]:
+        """
+        Get all people mentioned across all articles, ordered by frequency of appearance.
+
+        Workflow:
+        1. Get all articles from article_catalog
+        2. For each article, deserialize people JSON
+        3. Count appearances by person name (case-insensitive)
+        4. Consolidate information for each unique person
+        5. Sort by frequency (most mentioned first)
+        6. Return list with person info, articles, and frequency
+
+        Returns:
+            List of dictionaries with:
+            - nombre: Person's name
+            - frecuencia: Number of articles they appear in
+            - cargos: List of unique roles they have
+            - organizaciones: List of unique organizations
+            - articulos: List of dicts with article_title and article_link
+            - datos_interes: Consolidated interesting facts
+        """
+        try:
+            # Dictionary to track people by name (case-insensitive key)
+            people_map = {}
+
+            # Get all articles
+            all_articles = self.article_catalog.get()
+
+            if all_articles and 'metadatas' in all_articles:
+                for metadata in all_articles['metadatas']:
+                    people_json = metadata.get('people', '[]')
+                    people_list = json.loads(people_json)
+                    article_title = metadata.get('title')
+                    article_link = metadata.get('article_link')
+
+                    # Process each person in this article
+                    for person in people_list:
+                        nombre = person.get('nombre', '')
+                        if not nombre:
+                            continue
+
+                        # Use lowercase name as key for deduplication
+                        nombre_key = nombre.lower()
+
+                        # Initialize person entry if first time seeing them
+                        if nombre_key not in people_map:
+                            people_map[nombre_key] = {
+                                'nombre': nombre,  # Keep original capitalization
+                                'frecuencia': 0,
+                                'cargos': set(),
+                                'organizaciones': set(),
+                                'articulos': [],
+                                'datos_interes': []
+                            }
+
+                        # Update person data
+                        person_entry = people_map[nombre_key]
+                        person_entry['frecuencia'] += 1
+
+                        # Add cargo if present
+                        cargo = person.get('cargo')
+                        if cargo:
+                            person_entry['cargos'].add(cargo)
+
+                        # Add organization if present
+                        org = person.get('organizacion')
+                        if org:
+                            person_entry['organizaciones'].add(org)
+
+                        # Add article reference
+                        person_entry['articulos'].append({
+                            'title': article_title,
+                            'link': article_link
+                        })
+
+                        # Add datos_interes if present
+                        datos = person.get('datos_interes')
+                        if datos:
+                            person_entry['datos_interes'].append(datos)
+
+            # Convert sets to lists and prepare final output
+            result = []
+            for person_data in people_map.values():
+                result.append({
+                    'nombre': person_data['nombre'],
+                    'frecuencia': person_data['frecuencia'],
+                    'cargos': list(person_data['cargos']),
+                    'organizaciones': list(person_data['organizaciones']),
+                    'articulos': person_data['articulos'],
+                    'datos_interes': person_data['datos_interes']
+                })
+
+            # Sort by frequency (descending)
+            result.sort(key=lambda x: x['frecuencia'], reverse=True)
+
+            return result
+        except Exception as e:
+            print(f"Error getting all people with frequency: {e}")
+            return []

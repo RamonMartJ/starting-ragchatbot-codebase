@@ -103,26 +103,45 @@ User Query → Claude (with tools available)
 
 **Location**: `ai_generator.py:66-69` - history appended to system content.
 
-### 5. Document Format: News Article Structure
+### 5. Document Format: News Article Structure with People
 
 **Expected format** for files in `/docs`:
 ```
 Titular: [article headline]
+
+Personas Mencionadas:
+- Nombre Completo | Cargo/Rol | Organización | Datos de interés
+- Otro Nombre | Otro Cargo | Otra Org | Otros datos
+
 [article content - summary and body]
+
 Enlace: [article URL]
 ```
 
 **Example** (`noticia_1.txt`):
 ```
 Titular: El abogado Carlos Lacaci advierte sobre la situación de Carlos Mazón...
+
+Personas Mencionadas:
+- Carlos Lacaci | Abogado |  | Considera que el cerco judicial se estrecha
+- Maribel Vilaplana | Periodista |  | Citada a declarar como testigo el 3 de noviembre
+- Carlos Mazón | Presidente de la Generalitat | Generalitat Valenciana | Aforado ante el TSJ
+
 [Article body paragraphs]
+
 Enlace: https://www.antena3.com/noticias/...
 ```
 
-**Parsing logic**: `document_processor.py:96-177` uses regex to extract:
+**Parsing logic**: `document_processor.py:96-227` uses regex to extract:
 - `Titular:` line → article title (required)
+- `Personas Mencionadas:` section → list of people with format `- Name | Role | Org | Data`
 - `Enlace:` line → article link (optional)
 - All other non-empty lines → article content
+
+**Person line format**: `- Nombre | Cargo | Organización | Datos`
+- Fields separated by pipe `|` character
+- Empty fields allowed (leave blank between pipes)
+- Parsed by `_parse_person_line()` method (lines 96-142)
 
 ### 6. Citation System with Clickable Links
 
@@ -139,6 +158,33 @@ Enlace: https://www.antena3.com/noticias/...
 3. Builds sources list: `[{"text": "Artículo: [title]", "url": "[link]", "index": 1}, ...]`
 4. Stores in `last_sources` attribute for UI retrieval
 5. Frontend renders inline citations `[1]` with tooltips and clickable badges
+
+### 7. People Management System
+
+**Structured person tracking** (`search_tools.py:125-337`, `vector_store.py:228-336`):
+
+- **People stored as structured metadata** in article documents
+- Each person has: `nombre`, `cargo`, `organizacion`, `datos_interes`
+- Serialized as JSON in ChromaDB `article_catalog` metadata
+- Enables queries like "Who is X?", "Which articles mention Y?", "Show all journalists"
+
+**PeopleSearchTool capabilities** (`search_tools.py:125-337`):
+1. **List people in article**: `article_title="..."`
+2. **Find articles by person**: `person_name="Carlos Mazón"`
+3. **Search by role**: `role="Periodista"`
+4. **Get person details**: Returns complete info with article context
+
+**VectorStore methods for people**:
+- `get_people_from_article()`: List all people in specific article
+- `find_articles_by_person()`: Get articles mentioning a person
+- `find_people_by_role()`: Filter people by cargo/rol across all articles
+
+**Data flow**:
+1. DocumentProcessor parses "Personas Mencionadas:" section
+2. Creates `Person` objects with all fields
+3. Stored as JSON in article_catalog metadata
+4. PeopleSearchTool queries and formats results
+5. Claude uses structured data to answer person-related queries
 
 ## Component Responsibilities
 
@@ -163,11 +209,19 @@ Enlace: https://www.antena3.com/noticias/...
 - Article link retrieval: `get_article_link()` for source citations (line 200)
 
 ### `search_tools.py` - Tool Definitions
-- `ArticleSearchTool`: Implements abstract `Tool` interface
-- **Tool name**: `search_news_content` (Spanish description at line 31)
-- **Tracks sources** in `last_sources` attribute with URLs for UI display (line 25)
-- `ToolManager`: Registry pattern for extensible tool system
-- Tool definitions must match Anthropic's tool schema
+- **`ArticleSearchTool`** (lines 20-122): Content search tool
+  - **Tool name**: `search_news_content` (Spanish description at line 31)
+  - Parameters: `query` (required), `article_title` (optional)
+  - **Tracks sources** in `last_sources` attribute with URLs for UI display
+- **`PeopleSearchTool`** (lines 125-337): People management tool
+  - **Tool name**: `search_people_in_articles` (Spanish description at line 144)
+  - Parameters: `article_title`, `person_name`, `role` (all optional, at least one required)
+  - Supports four query types: list people, find by person, find by role, get details
+  - **Tracks sources** with person-article context for UI display
+- **`ToolManager`** (lines 339+): Registry pattern for extensible tool system
+  - Manages tool registration and execution
+  - Aggregates sources from all tools for frontend
+  - Tool definitions must match Anthropic's tool schema
 
 ### `document_processor.py` - Document Parsing
 - Regex-based metadata extraction (lines 128-145)
@@ -337,7 +391,13 @@ rm -rf backend/chroma_db/
 - **Tool execution loop**: `backend/ai_generator.py:94-140` - `_handle_tool_execution()`
 - **Vector search logic**: `backend/vector_store.py:61-98` - `search()` method
 - **Chunking algorithm**: `backend/document_processor.py:24-94` - `chunk_text()`
-- **System prompt**: `backend/ai_generator.py:8-35` - guides Claude's behavior (Spanish)
+- **System prompt**: `backend/ai_generator.py:8-59` - guides Claude's behavior (Spanish, includes people tool instructions)
 - **API endpoints**: `backend/app.py:108-178`
-- **Document parsing**: `backend/document_processor.py:96-177` - article structure extraction
+- **Document parsing**: `backend/document_processor.py:144-227` - article structure extraction
+- **Person parsing**: `backend/document_processor.py:96-142` - `_parse_person_line()` method
 - **Citation system**: `search_tools.py:80-122` - source formatting with URLs
+- **People search tool**: `search_tools.py:125-337` - `PeopleSearchTool` class
+- **People vector store methods**: `backend/vector_store.py:228-336` - people management
+- **Person model**: `backend/models.py:11-31` - `Person` class definition
+- **Tool registration**: `backend/rag_system.py:22-31` - tool initialization and registration
+- **People extraction script**: `backend/extract_people.py` - helper script for data extraction

@@ -8,23 +8,48 @@ from pydantic import BaseModel
 # Used by DocumentProcessor to parse article documents and by VectorStore
 # to organize content in ChromaDB collections.
 
+class Person(BaseModel):
+    """
+    Represents a person mentioned in a news article.
+
+    Workflow:
+    1. DocumentProcessor parses "Personas Mencionadas:" section in article
+    2. Each line format: "- Nombre | Cargo | Organización | Datos"
+    3. Person objects created and added to Article.people list
+    4. Stored in VectorStore.article_catalog metadata as serialized JSON
+    5. Used by PeopleSearchTool for person-based queries
+
+    Fields:
+    - nombre: Full name of the person (required)
+    - cargo: Role or job title (e.g., "Periodista", "Presidente")
+    - organizacion: Organization or entity affiliation
+    - datos_interes: Additional contextual information
+    """
+    nombre: str                              # Full name (required)
+    cargo: Optional[str] = None             # Role/occupation
+    organizacion: Optional[str] = None       # Organization/entity
+    datos_interes: Optional[str] = None      # Additional relevant data
+
 class Article(BaseModel):
     """
     Represents a news article with metadata.
 
     Workflow:
-    1. DocumentProcessor parses article document (title, link)
+    1. DocumentProcessor parses article document (title, link, people)
     2. Article object created from document header
     3. Article stored in VectorStore.article_catalog for semantic matching
     4. Used to resolve partial article titles during search
 
     Format expected in .txt files:
     - Titular: [título]
+    - Personas Mencionadas:
+      - Nombre | Cargo | Organización | Datos
     - [contenido]
     - Enlace: [url]
     """
     title: str                          # Article headline (used as unique ID)
     article_link: Optional[str] = None  # URL link to the original article
+    people: List['Person'] = []         # List of people mentioned in the article
 
 class ArticleChunk(BaseModel):
     """

@@ -1,0 +1,108 @@
+{
+  "noticia_1.txt": [
+    {
+      "nombre": "Carlos Lacaci",
+      "cargo": "Abogado",
+      "organizacion": "",
+      "datos_interes": "Considera que el cerco judicial se estrecha alrededor de Carlos Mazón"
+    },
+    {
+      "nombre": "Maribel Vilaplana",
+      "cargo": "Periodista",
+      "organizacion": "",
+      "datos_interes": "Citada a declarar como testigo el 3 de noviembre ante la Audiencia Provincial de Valencia"
+    },
+    {
+      "nombre": "Carlos Mazón",
+      "cargo": "Presidente de la Generalitat",
+      "organizacion": "Generalitat Valenciana",
+      "datos_interes": "Aforado ante el Tribunal Superior de Justicia de Valencia, no está siendo investigado actualmente"
+    }
+  ],
+  "noticia_2.txt": [
+    {
+      "nombre": "Carlos Mazón",
+      "cargo": "Presidente de la Generalitat",
+      "organizacion": "Generalitat Valenciana",
+      "datos_interes": "Acompañó a Vilaplana al parking mientras el 112 estaba colapsado, llegó al CECOPI a las 20:28"
+    },
+    {
+      "nombre": "Maribel Vilaplana",
+      "cargo": "Periodista",
+      "organizacion": "",
+      "datos_interes": "Comió con Mazón en El Ventorro el 29 de octubre de 2024 durante la DANA"
+    }
+  ],
+  "noticia_3.txt": [
+    {
+      "nombre": "Inmaculada Piles",
+      "cargo": "Jefa de servicio del 112",
+      "organizacion": "112 de la Generalitat",
+      "datos_interes": "Declaró ante la jueza de Catarroja sobre el retraso en el envío del Es-Alert"
+    },
+    {
+      "nombre": "Juan Ramón Cuevas",
+      "cargo": "",
+      "organizacion": "Delegación del Gobierno",
+      "datos_interes": "Envió correo a las 18:35 con propuestas de redacción del mensaje Es-Alert"
+    },
+    {
+      "nombre": "Patricia García",
+      "cargo": "Responsable de Protección Civil",
+      "organizacion": "Delegación del Gobierno",
+      "datos_interes": "Solicitó activar el Es-Alert a las 18:35 horas"
+    },
+    {
+      "nombre": "Jorge Suárez",
+      "cargo": "Subdirector de Emergencias",
+      "organizacion": "",
+      "datos_interes": "Estaba en el Cecopi cuando se solicitó el Es-Alert, respondió 'Lo estamos valorando'"
+    },
+    {
+      "nombre": "Carlos Mazón",
+      "cargo": "Presidente de la Generalitat",
+      "organizacion": "Generalitat Valenciana",
+      "datos_interes": "Almorzó en El Ventorro desde las 15:00 hasta las 18:45 durante la emergencia"
+    },
+    {
+      "nombre": "Maribel Vilaplana",
+      "cargo": "Periodista",
+      "organizacion": "",
+      "datos_interes": "Almorzó con Mazón el 29 de octubre de 2024"
+    },
+    {
+      "nombre": "Emilio Argüeso",
+      "cargo": "Número dos del 112",
+      "organizacion": "112",
+      "datos_interes": "Preguntó por WhatsApp sobre rutas desde zonas afectadas para Presidencia"
+    }
+  ],
+  "noticia_4.txt": [
+    {
+      "nombre": "Carlos Mazón",
+      "cargo": "Presidente de la Generalitat",
+      "organizacion": "Generalitat Valenciana",
+      "datos_interes": "Confirmó su asistencia al funeral por la DANA pese a petición de víctimas"
+    },
+    {
+      "nombre": "Alberto Núñez Feijóo",
+      "cargo": "Líder del PP",
+      "organizacion": "Partido Popular",
+      "datos_interes": "Instó a Mazón a dar todas las respuestas necesarias sobre su actuación el 29-O"
+    },
+    {
+      "nombre": "Maribel Vilaplana",
+      "cargo": "Periodista",
+      "organizacion": "",
+      "datos_interes": "Fue acompañada por Mazón hasta un aparcamiento a las 18:45 horas"
+    }
+  ],
+  "noticia_5.txt": [
+    {
+      "nombre": "Carlos Mazón",
+      "cargo": "Presidente de la Generalitat Valenciana",
+      "organizacion": "Generalitat Valenciana, Partido Popular",
+      "datos_interes": "Licenciado en Derecho, fue miembro del grupo musical Marengo, ex-director gerente de la Cámara de Comercio de Alicante"
+    }
+  ]
+}

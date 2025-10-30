@@ -4,7 +4,7 @@ from document_processor import DocumentProcessor
 from vector_store import VectorStore
 from ai_generator import AIGenerator
 from session_manager import SessionManager
-from search_tools import ToolManager, ArticleSearchTool
+from search_tools import ToolManager, ArticleSearchTool, PeopleSearchTool
 from models import Article, ArticleChunk
 
 class RAGSystem:
@@ -21,8 +21,14 @@ class RAGSystem:
 
         # Initialize search tools
         self.tool_manager = ToolManager()
+
+        # Register article content search tool
         self.search_tool = ArticleSearchTool(self.vector_store)
         self.tool_manager.register_tool(self.search_tool)
+
+        # Register people search tool
+        self.people_tool = PeopleSearchTool(self.vector_store)
+        self.tool_manager.register_tool(self.people_tool)
     
     def add_article_document(self, file_path: str) -> Tuple[Article, int]:
         """
@@ -35,18 +41,27 @@ class RAGSystem:
             Tuple of (Article object, number of chunks created)
         """
         try:
+            print(f"[DEBUG] Processing article: {file_path}")
             # Process the document
             article, article_chunks = self.document_processor.process_article_document(file_path)
 
+            print(f"[DEBUG] Article '{article.title}' has {len(article.people)} people")
+            for person in article.people:
+                print(f"[DEBUG]   - {person.nombre} | {person.cargo}")
+
             # Add article metadata to vector store for semantic search
             self.vector_store.add_article_metadata(article)
+            print(f"[DEBUG] Added article metadata to vector store")
 
             # Add article content chunks to vector store
             self.vector_store.add_article_content(article_chunks)
+            print(f"[DEBUG] Added {len(article_chunks)} chunks to vector store")
 
             return article, len(article_chunks)
         except Exception as e:
-            print(f"Error processing article document {file_path}: {e}")
+            print(f"[ERROR] Error processing article document {file_path}: {e}")
+            import traceback
+            traceback.print_exc()
             return None, 0
     
     def add_articles_folder(self, folder_path: str, clear_existing: bool = False) -> Tuple[int, int]:

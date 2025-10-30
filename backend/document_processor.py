@@ -1,7 +1,7 @@
 import os
 import re
 from typing import List, Tuple
-from models import Article, ArticleChunk
+from models import Article, ArticleChunk, Person
 
 
 class DocumentProcessor:
@@ -93,21 +93,80 @@ class DocumentProcessor:
 
         return chunks
 
+    def _parse_person_line(self, line: str) -> Person:
+        """
+        Parse a person line from the Personas Mencionadas section.
+
+        Workflow:
+        1. Remove leading "- " from line
+        2. Split by "|" separator
+        3. Extract and strip each field: Nombre | Cargo | Organización | Datos
+        4. Create Person object with extracted fields
+
+        Format: - Nombre | Cargo | Organización | Datos
+
+        Args:
+            line: Line starting with "- " containing person info
+
+        Returns:
+            Person object or None if parsing fails
+        """
+        try:
+            # Remove leading "- " and split by |
+            line_content = line.lstrip("- ").strip()
+            parts = [part.strip() for part in line_content.split("|")]
+
+            print(f"[DEBUG] Parsing person line: '{line[:50]}...'")
+            print(f"[DEBUG] Split into {len(parts)} parts: {parts}")
+
+            # Ensure we have at least a name
+            if not parts or not parts[0]:
+                print(f"[WARNING] No name found in person line")
+                return None
+
+            # Extract fields (with defaults for missing parts)
+            nombre = parts[0] if len(parts) > 0 else ""
+            cargo = parts[1] if len(parts) > 1 else None
+            organizacion = parts[2] if len(parts) > 2 else None
+            datos_interes = parts[3] if len(parts) > 3 else None
+
+            # Clean empty strings to None
+            cargo = cargo if cargo and cargo.strip() else None
+            organizacion = organizacion if organizacion and organizacion.strip() else None
+            datos_interes = datos_interes if datos_interes and datos_interes.strip() else None
+
+            person = Person(
+                nombre=nombre,
+                cargo=cargo,
+                organizacion=organizacion,
+                datos_interes=datos_interes
+            )
+            print(f"[DEBUG] Created person: {person.nombre} ({person.cargo})")
+            return person
+        except Exception as e:
+            print(f"[ERROR] Error parsing person line '{line}': {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     def process_article_document(
         self, file_path: str
     ) -> Tuple[Article, List[ArticleChunk]]:
         """
         Process a news article document with expected format:
         Line 1: Titular: [título]
-        Lines 2-N: Article content (summary and body)
+        Lines 2-N: Personas Mencionadas: (optional)
+                   - Nombre | Cargo | Organización | Datos
+        Lines N+1-M: Article content (summary and body)
         Last line: Enlace: [url]
 
         Workflow:
         1. Extract article title from "Titular:" line
-        2. Extract article link from "Enlace:" line (if present)
-        3. All content in between is the article body
-        4. Chunk the article body using sentence-based chunking
-        5. Return Article object and list of ArticleChunks
+        2. Extract people from "Personas Mencionadas:" section (if present)
+        3. Extract article link from "Enlace:" line (if present)
+        4. All remaining content is the article body
+        5. Chunk the article body using sentence-based chunking
+        6. Return Article object and list of ArticleChunks
         """
         content = self.read_file(file_path)
         filename = os.path.basename(file_path)
@@ -117,7 +176,11 @@ class DocumentProcessor:
         # Initialize article metadata
         article_title = filename  # Default fallback
         article_link = None
+        article_people = []
         article_content_lines = []
+
+        # Flag para detectar sección de personas
+        in_people_section = False
 
         # Parse article structure
         i = 0
@@ -131,15 +194,36 @@ class DocumentProcessor:
                 i += 1
                 continue
 
-            # Check for link marker
-            link_match = re.match(r"^Enlace:\s*(.+)$", line, re.IGNORECASE)
-            if link_match:
-                article_link = link_match.group(1).strip()
+            # Check for people section marker
+            people_section_match = re.match(r"^Personas\s+Mencionadas:\s*$", line, re.IGNORECASE)
+            if people_section_match:
+                in_people_section = True
                 i += 1
                 continue
 
-            # All other lines are article content
-            if line:  # Skip empty lines
+            # Check for link marker (ends people section if active)
+            link_match = re.match(r"^Enlace:\s*(.+)$", line, re.IGNORECASE)
+            if link_match:
+                article_link = link_match.group(1).strip()
+                in_people_section = False
+                i += 1
+                continue
+
+            # Parse person line if in people section
+            # Format: - Nombre | Cargo | Organización | Datos
+            if in_people_section and line.startswith("-"):
+                person = self._parse_person_line(line)
+                if person:
+                    article_people.append(person)
+                i += 1
+                continue
+
+            # Check if we've left the people section (empty line or non-person content)
+            if in_people_section and line and not line.startswith("-"):
+                in_people_section = False
+
+            # All other lines are article content (skip if in people section)
+            if line and not in_people_section:  # Skip empty lines and people section
                 article_content_lines.append(line)
 
             i += 1
@@ -148,6 +232,7 @@ class DocumentProcessor:
         article = Article(
             title=article_title,
             article_link=article_link,
+            people=article_people
         )
 
         # Combine article content and create chunks
