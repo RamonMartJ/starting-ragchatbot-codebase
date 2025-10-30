@@ -6,6 +6,10 @@ from ai_generator import AIGenerator
 from session_manager import SessionManager
 from search_tools import ToolManager, ArticleSearchTool, PeopleSearchTool
 from models import Article, ArticleChunk
+from logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 class RAGSystem:
     """Main orchestrator for the Retrieval-Augmented Generation system"""
@@ -41,27 +45,25 @@ class RAGSystem:
             Tuple of (Article object, number of chunks created)
         """
         try:
-            print(f"[DEBUG] Processing article: {file_path}")
+            logger.info(f"Processing article: {file_path}")
             # Process the document
             article, article_chunks = self.document_processor.process_article_document(file_path)
 
-            print(f"[DEBUG] Article '{article.title}' has {len(article.people)} people")
+            logger.debug(f"Article '{article.title}' has {len(article.people)} people")
             for person in article.people:
-                print(f"[DEBUG]   - {person.nombre} | {person.cargo}")
+                logger.debug(f"  - {person.nombre} | {person.cargo}")
 
             # Add article metadata to vector store for semantic search
             self.vector_store.add_article_metadata(article)
-            print(f"[DEBUG] Added article metadata to vector store")
+            logger.debug("Added article metadata to vector store")
 
             # Add article content chunks to vector store
             self.vector_store.add_article_content(article_chunks)
-            print(f"[DEBUG] Added {len(article_chunks)} chunks to vector store")
+            logger.info(f"Added article with {len(article_chunks)} chunks to vector store")
 
             return article, len(article_chunks)
         except Exception as e:
-            print(f"[ERROR] Error processing article document {file_path}: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error processing article {file_path}: {e}", exc_info=True)
             return None, 0
     
     def add_articles_folder(self, folder_path: str, clear_existing: bool = False) -> Tuple[int, int]:
@@ -80,15 +82,18 @@ class RAGSystem:
 
         # Clear existing data if requested
         if clear_existing:
-            print("Clearing existing data for fresh rebuild...")
+            logger.info("Clearing existing data for fresh rebuild...")
             self.vector_store.clear_all_data()
 
         if not os.path.exists(folder_path):
-            print(f"Folder {folder_path} does not exist")
+            logger.warning(f"Folder {folder_path} does not exist")
             return 0, 0
+
+        logger.info(f"Processing articles from folder: {folder_path}")
 
         # Get existing article titles to avoid re-processing
         existing_article_titles = set(self.vector_store.get_existing_article_titles())
+        logger.debug(f"Found {len(existing_article_titles)} existing articles")
 
         # Process each file in the folder
         for file_name in os.listdir(folder_path):
@@ -105,13 +110,14 @@ class RAGSystem:
                         self.vector_store.add_article_content(article_chunks)
                         total_articles += 1
                         total_chunks += len(article_chunks)
-                        print(f"Added new article: {article.title} ({len(article_chunks)} chunks)")
+                        logger.info(f"Added new article: {article.title} ({len(article_chunks)} chunks)")
                         existing_article_titles.add(article.title)
                     elif article:
-                        print(f"Article already exists: {article.title} - skipping")
+                        logger.debug(f"Article already exists: {article.title} - skipping")
                 except Exception as e:
-                    print(f"Error processing {file_name}: {e}")
+                    logger.error(f"Error processing {file_name}: {e}", exc_info=True)
 
+        logger.info(f"Folder processing complete: {total_articles} articles, {total_chunks} chunks")
         return total_articles, total_chunks
     
     def query(self, query: str, session_id: Optional[str] = None) -> Tuple[str, List[str]]:
@@ -125,6 +131,8 @@ class RAGSystem:
         Returns:
             Tuple of (response, sources list - empty for tool-based approach)
         """
+        logger.info(f"RAG query: '{query[:50]}...' session={session_id}")
+
         # Create prompt for the AI with clear instructions
         prompt = f"""Responde a esta pregunta sobre artículos de noticias: {query}"""
 
@@ -132,8 +140,11 @@ class RAGSystem:
         history = None
         if session_id:
             history = self.session_manager.get_conversation_history(session_id)
+            if history:
+                logger.debug(f"Using conversation history for session {session_id}")
 
         # Generate response using AI with tools
+        logger.debug("Generating AI response with tools")
         response = self.ai_generator.generate_response(
             query=prompt,
             conversation_history=history,
@@ -143,6 +154,7 @@ class RAGSystem:
 
         # Get sources from the search tool
         sources = self.tool_manager.get_last_sources()
+        logger.debug(f"Retrieved {len(sources)} sources from tools")
 
         # Reset sources after retrieving them
         self.tool_manager.reset_sources()
@@ -151,6 +163,7 @@ class RAGSystem:
         if session_id:
             self.session_manager.add_exchange(session_id, query, response)
 
+        logger.info(f"Query completed successfully with {len(sources)} sources")
         # Return response with sources from tool searches
         return response, sources
 

@@ -1,5 +1,9 @@
 import anthropic
 from typing import List, Optional, Dict, Any
+from logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 class AIGenerator:
     """Handles interactions with Anthropic's Claude API for generating responses"""
@@ -80,90 +84,112 @@ Proporciona solo la respuesta directa a lo que se preguntó.
                          tool_manager=None) -> str:
         """
         Generate AI response with optional tool usage and conversation context.
-        
+
         Args:
             query: The user's question or request
             conversation_history: Previous messages for context
             tools: Available tools the AI can use
             tool_manager: Manager to execute tools
-            
+
         Returns:
             Generated response as string
         """
-        
-        # Build system content efficiently - avoid string ops when possible
-        system_content = (
-            f"{self.SYSTEM_PROMPT}\n\nPrevious conversation:\n{conversation_history}"
-            if conversation_history 
-            else self.SYSTEM_PROMPT
-        )
-        
-        # Prepare API call parameters efficiently
-        api_params = {
-            **self.base_params,
-            "messages": [{"role": "user", "content": query}],
-            "system": system_content
-        }
-        
-        # Add tools if available
-        if tools:
-            api_params["tools"] = tools
-            api_params["tool_choice"] = {"type": "auto"}
-        
-        # Get response from Claude
-        response = self.client.messages.create(**api_params)
-        
-        # Handle tool execution if needed
-        if response.stop_reason == "tool_use" and tool_manager:
-            return self._handle_tool_execution(response, api_params, tool_manager)
-        
-        # Return direct response
-        return response.content[0].text
+        try:
+            logger.debug(f"Generating response for query with {len(tools or [])} tools")
+
+            # Build system content efficiently - avoid string ops when possible
+            system_content = (
+                f"{self.SYSTEM_PROMPT}\n\nPrevious conversation:\n{conversation_history}"
+                if conversation_history
+                else self.SYSTEM_PROMPT
+            )
+
+            # Prepare API call parameters efficiently
+            api_params = {
+                **self.base_params,
+                "messages": [{"role": "user", "content": query}],
+                "system": system_content
+            }
+
+            # Add tools if available
+            if tools:
+                api_params["tools"] = tools
+                api_params["tool_choice"] = {"type": "auto"}
+
+            # Get response from Claude
+            logger.debug(f"Calling Anthropic API - model={self.model}, max_tokens={api_params['max_tokens']}")
+            response = self.client.messages.create(**api_params)
+            logger.debug(f"Anthropic response - stop_reason={response.stop_reason}")
+
+            # Handle tool execution if needed
+            if response.stop_reason == "tool_use" and tool_manager:
+                logger.info("Tool use requested by Claude")
+                return self._handle_tool_execution(response, api_params, tool_manager)
+
+            # Return direct response
+            logger.debug("Returning direct response (no tools used)")
+            return response.content[0].text
+
+        except Exception as e:
+            logger.error(f"Error generating response: {e}", exc_info=True)
+            raise
     
     def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
         """
         Handle execution of tool calls and get follow-up response.
-        
+
         Args:
             initial_response: The response containing tool use requests
             base_params: Base API parameters
             tool_manager: Manager to execute tools
-            
+
         Returns:
             Final response text after tool execution
         """
-        # Start with existing messages
-        messages = base_params["messages"].copy()
-        
-        # Add AI's tool use response
-        messages.append({"role": "assistant", "content": initial_response.content})
-        
-        # Execute all tool calls and collect results
-        tool_results = []
-        for content_block in initial_response.content:
-            if content_block.type == "tool_use":
-                tool_result = tool_manager.execute_tool(
-                    content_block.name, 
-                    **content_block.input
-                )
-                
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": content_block.id,
-                    "content": tool_result
-                })
-        
-        # Add tool results as single message
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
-        
-        # Prepare final API call without tools
-        final_params = {
-            **self.base_params,
-            "messages": messages,
-            "system": base_params["system"]
-        }
-        
-        # Get final response
-        final_response = self.client.messages.create(**final_params)
-        return final_response.content[0].text
+        try:
+            # Start with existing messages
+            messages = base_params["messages"].copy()
+
+            # Add AI's tool use response
+            messages.append({"role": "assistant", "content": initial_response.content})
+
+            # Execute all tool calls and collect results
+            tool_results = []
+            for content_block in initial_response.content:
+                if content_block.type == "tool_use":
+                    logger.info(f"Tool use requested: {content_block.name}")
+                    logger.debug(f"Executing tool {content_block.name} with input: {content_block.input}")
+
+                    tool_result = tool_manager.execute_tool(
+                        content_block.name,
+                        **content_block.input
+                    )
+
+                    logger.debug(f"Tool result length: {len(tool_result)} chars")
+
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": content_block.id,
+                        "content": tool_result
+                    })
+
+            # Add tool results as single message
+            if tool_results:
+                messages.append({"role": "user", "content": tool_results})
+
+            # Prepare final API call without tools
+            final_params = {
+                **self.base_params,
+                "messages": messages,
+                "system": base_params["system"]
+            }
+
+            # Get final response
+            logger.debug("Calling Anthropic API with tool results")
+            final_response = self.client.messages.create(**final_params)
+            logger.debug(f"Final response received - stop_reason={final_response.stop_reason}")
+            return final_response.content[0].text
+
+        except Exception as e:
+            logger.error(f"Error handling tool execution: {e}", exc_info=True)
+            raise

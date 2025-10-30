@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from models import Article, ArticleChunk
 from sentence_transformers import SentenceTransformer
 import json
+from logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 @dataclass
 class SearchResults:
@@ -74,11 +78,17 @@ class VectorStore:
         Returns:
             SearchResults object with documents and metadata
         """
+        # Log search initiation
+        query_preview = query[:50] + "..." if len(query) > 50 else query
+        logger.debug(f"VectorStore.search(query='{query_preview}', article_title={article_title})")
+
         # Step 1: Resolve article title if provided
         resolved_title = None
         if article_title:
+            logger.debug(f"Resolving article title: {article_title}")
             resolved_title = self._resolve_article_title(article_title)
             if not resolved_title:
+                logger.warning(f"No article found matching '{article_title}'")
                 return SearchResults.empty(f"No article found matching '{article_title}'")
 
         # Step 2: Build filter for content search
@@ -89,13 +99,16 @@ class VectorStore:
         search_limit = limit if limit is not None else self.max_results
 
         try:
+            logger.debug(f"Querying article_content collection: n_results={search_limit}, filter={filter_dict}")
             results = self.article_content.query(
                 query_texts=[query],
                 n_results=search_limit,
                 where=filter_dict
             )
+            logger.debug(f"ChromaDB returned {len(results['documents'][0] if results['documents'] else [])} documents")
             return SearchResults.from_chroma(results)
         except Exception as e:
+            logger.error(f"ChromaDB search error: {e}", exc_info=True)
             return SearchResults.empty(f"Search error: {str(e)}")
     
     def _resolve_article_title(self, article_title: str) -> Optional[str]:
@@ -108,9 +121,11 @@ class VectorStore:
 
             if results['documents'][0] and results['metadatas'][0]:
                 # Return the title (which is the ID)
-                return results['metadatas'][0][0]['title']
+                resolved = results['metadatas'][0][0]['title']
+                logger.debug(f"Resolved '{article_title}' to '{resolved}'")
+                return resolved
         except Exception as e:
-            print(f"Error resolving article title: {e}")
+            logger.error(f"Error resolving article title: {e}", exc_info=True)
 
         return None
 
@@ -138,8 +153,8 @@ class VectorStore:
         # Serialize people list to JSON for storage
         people_json = json.dumps([p.dict() for p in article.people]) if article.people else "[]"
 
-        print(f"[DEBUG VectorStore] Adding article: {article.title}")
-        print(f"[DEBUG VectorStore] People JSON ({len(article.people)} people): {people_json[:100]}...")
+        logger.info(f"Adding article to catalog: {article.title} with {len(article.people)} people")
+        logger.debug(f"People JSON preview: {people_json[:100]}...")
 
         self.article_catalog.add(
             documents=[article_text],
@@ -150,12 +165,14 @@ class VectorStore:
             }],
             ids=[article.title]
         )
-        print(f"[DEBUG VectorStore] Successfully added to article_catalog")
+        logger.debug(f"Successfully added article to article_catalog")
 
     def add_article_content(self, chunks: List[ArticleChunk]):
         """Add article content chunks to the vector store"""
         if not chunks:
             return
+
+        logger.debug(f"Adding {len(chunks)} content chunks to article_content collection")
 
         documents = [chunk.content for chunk in chunks]
         metadatas = [{
@@ -170,17 +187,20 @@ class VectorStore:
             metadatas=metadatas,
             ids=ids
         )
+        logger.debug(f"Successfully added {len(chunks)} chunks to article_content")
     
     def clear_all_data(self):
         """Clear all data from both collections"""
         try:
+            logger.info("Clearing all data from vector store collections")
             self.client.delete_collection("article_catalog")
             self.client.delete_collection("article_content")
             # Recreate collections
             self.article_catalog = self._create_collection("article_catalog")
             self.article_content = self._create_collection("article_content")
+            logger.info("Successfully cleared and recreated collections")
         except Exception as e:
-            print(f"Error clearing data: {e}")
+            logger.error(f"Error clearing data: {e}", exc_info=True)
 
     def get_existing_article_titles(self) -> List[str]:
         """Get all existing article titles from the vector store"""
@@ -188,10 +208,11 @@ class VectorStore:
             # Get all documents from the catalog
             results = self.article_catalog.get()
             if results and 'ids' in results:
+                logger.debug(f"Retrieved {len(results['ids'])} article titles")
                 return results['ids']
             return []
         except Exception as e:
-            print(f"Error getting existing article titles: {e}")
+            logger.error(f"Error getting existing article titles: {e}", exc_info=True)
             return []
 
     def get_article_count(self) -> int:
@@ -199,21 +220,24 @@ class VectorStore:
         try:
             results = self.article_catalog.get()
             if results and 'ids' in results:
-                return len(results['ids'])
+                count = len(results['ids'])
+                logger.debug(f"Article count: {count}")
+                return count
             return 0
         except Exception as e:
-            print(f"Error getting article count: {e}")
+            logger.error(f"Error getting article count: {e}", exc_info=True)
             return 0
-    
+
     def get_all_articles_metadata(self) -> List[Dict[str, Any]]:
         """Get metadata for all articles in the vector store"""
         try:
             results = self.article_catalog.get()
             if results and 'metadatas' in results:
+                logger.debug(f"Retrieved metadata for {len(results['metadatas'])} articles")
                 return results['metadatas']
             return []
         except Exception as e:
-            print(f"Error getting articles metadata: {e}")
+            logger.error(f"Error getting articles metadata: {e}", exc_info=True)
             return []
 
     def get_article_link(self, article_title: str) -> Optional[str]:
@@ -223,10 +247,12 @@ class VectorStore:
             results = self.article_catalog.get(ids=[article_title])
             if results and 'metadatas' in results and results['metadatas']:
                 metadata = results['metadatas'][0]
-                return metadata.get('article_link')
+                link = metadata.get('article_link')
+                logger.debug(f"Retrieved link for article '{article_title}': {link}")
+                return link
             return None
         except Exception as e:
-            print(f"Error getting article link: {e}")
+            logger.error(f"Error getting article link: {e}", exc_info=True)
             return None
 
     def get_people_from_article(self, article_title: str) -> List[Dict[str, Any]]:
@@ -251,10 +277,11 @@ class VectorStore:
                 metadata = results['metadatas'][0]
                 people_json = metadata.get('people', '[]')
                 people_list = json.loads(people_json)
+                logger.debug(f"Retrieved {len(people_list)} people from article '{article_title}'")
                 return people_list
             return []
         except Exception as e:
-            print(f"Error getting people from article: {e}")
+            logger.error(f"Error getting people from article: {e}", exc_info=True)
             return []
 
     def find_articles_by_person(self, person_name: str) -> List[Dict[str, str]]:
@@ -292,9 +319,10 @@ class VectorStore:
                             })
                             break  # Avoid adding same article multiple times
 
+            logger.debug(f"Found {len(matching_articles)} articles mentioning '{person_name}'")
             return matching_articles
         except Exception as e:
-            print(f"Error finding articles by person: {e}")
+            logger.error(f"Error finding articles by person: {e}", exc_info=True)
             return []
 
     def find_people_by_role(self, role: str) -> List[Dict[str, Any]]:
@@ -334,9 +362,10 @@ class VectorStore:
                             person_with_context['article_link'] = metadata.get('article_link')
                             matching_people.append(person_with_context)
 
+            logger.debug(f"Found {len(matching_people)} people with role '{role}'")
             return matching_people
         except Exception as e:
-            print(f"Error finding people by role: {e}")
+            logger.error(f"Error finding people by role: {e}", exc_info=True)
             return []
 
     def get_all_people_with_frequency(self) -> List[Dict[str, Any]]:
@@ -434,7 +463,8 @@ class VectorStore:
             # Sort by frequency (descending)
             result.sort(key=lambda x: x['frecuencia'], reverse=True)
 
+            logger.debug(f"Retrieved {len(result)} unique people across all articles")
             return result
         except Exception as e:
-            print(f"Error getting all people with frequency: {e}")
+            logger.error(f"Error getting all people with frequency: {e}", exc_info=True)
             return []

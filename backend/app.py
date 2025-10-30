@@ -11,6 +11,10 @@ import os
 from config import config
 from rag_system import RAGSystem
 from models import QueryRequest, QueryResponse, ArticleStats
+from logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 # ============================================================================
 # RAG SYSTEM INITIALIZATION
@@ -48,21 +52,24 @@ async def lifespan(app: FastAPI):
     - Ensures vector store is populated before API is available
     """
     # STARTUP: Load initial documents into vector store
+    logger.info("Starting application - initializing RAG system")
     docs_path = "../docs"
     if os.path.exists(docs_path):
-        print("Loading initial documents...")
+        logger.info(f"Loading initial documents from {docs_path}")
         try:
             # Process all .txt files in docs folder
             # Returns: (num_articles: int, num_chunks: int)
             articles, chunks = rag_system.add_articles_folder(docs_path, clear_existing=False)
-            print(f"Loaded {articles} articles with {chunks} chunks")
+            logger.info(f"Successfully loaded {articles} articles with {chunks} chunks")
         except Exception as e:
-            print(f"Error loading documents: {e}")
+            logger.error(f"Error loading documents: {e}", exc_info=True)
+    else:
+        logger.warning(f"Documents directory not found: {docs_path}")
 
     yield  # Application is now running and serving requests
 
     # SHUTDOWN: Cleanup resources (extend as needed)
-    print("Shutting down...")
+    logger.info("Shutting down application")
 
 # ============================================================================
 # FASTAPI APP INITIALIZATION
@@ -137,9 +144,16 @@ async def query_documents(request: QueryRequest):
         if not session_id:
             session_id = rag_system.session_manager.create_session()
 
+        # Log query received
+        query_preview = request.query[:50] + "..." if len(request.query) > 50 else request.query
+        logger.info(f"Query received: '{query_preview}' session={session_id}")
+
         # Process query using RAG system (retrieval + AI generation)
         # Returns: (answer: str, sources: List[str])
         answer, sources = rag_system.query(request.query, session_id)
+
+        # Log successful response
+        logger.info(f"Query successful, {len(sources)} sources returned")
 
         return QueryResponse(
             answer=answer,
@@ -147,6 +161,8 @@ async def query_documents(request: QueryRequest):
             session_id=session_id
         )
     except Exception as e:
+        # Log error with full traceback
+        logger.error(f"Query failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/articles", response_model=ArticleStats)
@@ -168,13 +184,16 @@ async def get_article_stats():
         HTTPException: 500 error if analytics retrieval fails
     """
     try:
+        logger.debug("Fetching article statistics")
         # Query RAG system for article analytics
         analytics = rag_system.get_article_analytics()
+        logger.info(f"Article stats retrieved: {analytics['total_articles']} articles")
         return ArticleStats(
             total_articles=analytics["total_articles"],
             article_titles=analytics["article_titles"]
         )
     except Exception as e:
+        logger.error(f"Failed to retrieve article stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================

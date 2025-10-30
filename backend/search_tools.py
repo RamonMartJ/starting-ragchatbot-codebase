@@ -1,6 +1,10 @@
 from typing import Dict, Any, Optional, List
 from abc import ABC, abstractmethod
 from vector_store import VectorStore, SearchResults
+from logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 
 class Tool(ABC):
@@ -56,6 +60,8 @@ class ArticleSearchTool(Tool):
         Returns:
             Formatted search results or error message
         """
+        # Log the search execution
+        logger.info(f"ArticleSearchTool.execute(query='{query[:50]}...', article_title='{article_title}')")
 
         # Use the vector store's unified search interface
         results = self.store.search(
@@ -65,6 +71,7 @@ class ArticleSearchTool(Tool):
 
         # Handle errors
         if results.error:
+            logger.warning(f"Search error: {results.error}")
             return results.error
 
         # Handle empty results
@@ -72,9 +79,11 @@ class ArticleSearchTool(Tool):
             filter_info = ""
             if article_title:
                 filter_info += f" en artículo '{article_title}'"
+            logger.info(f"No results found for query='{query[:50]}...'")
             return f"No se encontró contenido relevante{filter_info}."
 
         # Format and return results
+        logger.info(f"Found {len(results.documents)} documents for query")
         return self._format_results(results)
     
     def _format_results(self, results: SearchResults) -> str:
@@ -187,27 +196,29 @@ class PeopleSearchTool(Tool):
         Returns:
             Formatted results with person information and article context
         """
-        print(f"[DEBUG PeopleTool] Execute called with: article_title={article_title}, person_name={person_name}, role={role}")
+        logger.info(f"PeopleSearchTool.execute(article_title={article_title}, person_name={person_name}, role={role})")
 
         # Reset sources for new search
         self.last_sources = []
 
         # Case 0: No parameters provided - return all people by frequency
         if not article_title and not person_name and not role:
-            print(f"[DEBUG PeopleTool] No parameters - returning all people by frequency")
+            logger.debug("No parameters - returning all people by frequency")
             all_people = self.store.get_all_people_with_frequency()
             if all_people:
+                logger.info(f"Found {len(all_people)} total people across all articles")
                 return self._format_all_people(all_people)
             else:
+                logger.info("No people found in any articles")
                 return "No se encontraron personas registradas en las noticias."
 
         results = []
 
         # Case 1: List people from a specific article
         if article_title:
-            print(f"[DEBUG PeopleTool] Searching people in article: {article_title}")
+            logger.debug(f"Searching people in article: {article_title}")
             people_list = self.store.get_people_from_article(article_title)
-            print(f"[DEBUG PeopleTool] Found {len(people_list)} people")
+            logger.info(f"Found {len(people_list)} people in article")
             if people_list:
                 article_link = self.store.get_article_link(article_title)
                 result = self._format_people_in_article(article_title, article_link, people_list)
@@ -220,14 +231,14 @@ class PeopleSearchTool(Tool):
                     "index": len(self.last_sources) + 1
                 })
             else:
-                print(f"[WARNING PeopleTool] No people found in article '{article_title}'")
+                logger.warning(f"No people found in article '{article_title}'")
                 return f"No se encontraron personas registradas en el artículo '{article_title}'."
 
         # Case 2: Find articles mentioning a specific person
         if person_name:
-            print(f"[DEBUG PeopleTool] Searching articles mentioning: {person_name}")
+            logger.debug(f"Searching articles mentioning: {person_name}")
             articles = self.store.find_articles_by_person(person_name)
-            print(f"[DEBUG PeopleTool] Found {len(articles)} articles")
+            logger.info(f"Found {len(articles)} articles mentioning '{person_name}'")
             if articles:
                 for article in articles:
                     # Get people details from each article
@@ -250,14 +261,14 @@ class PeopleSearchTool(Tool):
                             "index": len(self.last_sources) + 1
                         })
             else:
-                print(f"[WARNING PeopleTool] No articles found mentioning '{person_name}'")
+                logger.warning(f"No articles found mentioning '{person_name}'")
                 return f"No se encontraron artículos que mencionen a '{person_name}'."
 
         # Case 3: Find people by role
         if role:
-            print(f"[DEBUG PeopleTool] Searching people with role: {role}")
+            logger.debug(f"Searching people with role: {role}")
             people = self.store.find_people_by_role(role)
-            print(f"[DEBUG PeopleTool] Found {len(people)} people with role")
+            logger.info(f"Found {len(people)} people with role '{role}'")
             if people:
                 result = self._format_people_by_role(role, people)
                 results.append(result)
@@ -270,11 +281,11 @@ class PeopleSearchTool(Tool):
                         "index": len(self.last_sources) + 1
                     })
             else:
-                print(f"[WARNING PeopleTool] No people found with role '{role}'")
+                logger.warning(f"No people found with role '{role}'")
                 return f"No se encontraron personas con el cargo '{role}'."
 
         final_result = "\n\n".join(results) if results else "No se encontraron resultados."
-        print(f"[DEBUG PeopleTool] Returning {len(results)} results, {len(self.last_sources)} sources")
+        logger.info(f"Returning {len(results)} results, {len(self.last_sources)} sources")
         return final_result
 
     def _format_people_in_article(
