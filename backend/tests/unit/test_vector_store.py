@@ -12,7 +12,6 @@ Run with: pytest tests/unit/test_vector_store.py -v
 """
 
 import pytest
-import json
 from models import Article, ArticleChunk, Person
 
 

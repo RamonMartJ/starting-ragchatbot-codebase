@@ -8,6 +8,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+uv.lock
 
 # Virtual environments
 venv/
@@ -32,3 +33,6 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# ChromaDB
+chroma_db/
