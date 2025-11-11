@@ -1,6 +1,7 @@
 import warnings
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -54,13 +55,14 @@ async def lifespan(app: FastAPI):
     """
     # STARTUP: Load initial documents into vector store
     logger.info("Starting application - initializing RAG system")
-    docs_path = "../docs"
-    if os.path.exists(docs_path):
+    # Use absolute path relative to project root to avoid issues when running from different directories
+    docs_path = Path(__file__).parent.parent / "docs"
+    if docs_path.exists():
         logger.info(f"Loading initial documents from {docs_path}")
         try:
             # Process all .txt files in docs folder
             # Returns: (num_articles: int, num_chunks: int)
-            articles, chunks = rag_system.add_articles_folder(docs_path, clear_existing=False)
+            articles, chunks = rag_system.add_articles_folder(str(docs_path), clear_existing=False)
             logger.info(f"Successfully loaded {articles} articles with {chunks} chunks")
         except Exception as e:
             logger.error(f"Error loading documents: {e}", exc_info=True)
@@ -239,8 +241,9 @@ class DevStaticFiles(StaticFiles):
 
 
 # Mount frontend static files at root path
-# - directory="../frontend": Serves files from frontend folder
+# Use absolute path relative to project root to avoid issues when running from different directories
 # - html=True: Automatically serves index.html for directory requests
 # - name="static": Internal route name for FastAPI
 # Result: http://localhost:8000/ → serves frontend/index.html
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="static")
+frontend_path = Path(__file__).parent.parent / "frontend"
+app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="static")

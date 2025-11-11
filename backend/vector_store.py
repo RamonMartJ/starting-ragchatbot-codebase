@@ -151,7 +151,7 @@ class VectorStore:
         article_text = article.title
 
         # Serialize people list to JSON for storage
-        people_json = json.dumps([p.dict() for p in article.people]) if article.people else "[]"
+        people_json = json.dumps([p.model_dump() for p in article.people]) if article.people else "[]"
 
         logger.info(f"Adding article to catalog: {article.title} with {len(article.people)} people")
         logger.debug(f"People JSON preview: {people_json[:100]}...")

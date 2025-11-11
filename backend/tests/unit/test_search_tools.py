@@ -80,7 +80,7 @@ class TestArticleSearchTool:
         assert "Test Article" in result
         assert "Test content from article" in result
         assert len(tool.last_sources) == 1
-        assert tool.last_sources[0]["text"] == "Art�culo: Test Article"
+        assert tool.last_sources[0]["text"] == "Artículo: Test Article"
         assert tool.last_sources[0]["url"] == "https://example.com/test"
         assert tool.last_sources[0]["index"] == 1
 
@@ -105,7 +105,7 @@ class TestArticleSearchTool:
         result = tool.execute(query="test query")
 
         # Verify: Empty message returned
-        assert "No se encontr� contenido relevante" in result
+        assert "No se encontró contenido relevante" in result
 
     def test_execute_with_error(self):
         """
@@ -369,7 +369,7 @@ class TestPeopleSearchTool:
 
         # Verify: All people returned
         assert "Person A" in result
-        assert "3 art�culo" in result
+        assert "3 artículo" in result
         assert "CEO" in result
         mock_store.get_all_people_with_frequency.assert_called_once()
 
@@ -396,7 +396,7 @@ class TestPeopleSearchTool:
 
         # Test person_name with no articles
         result2 = tool.execute(person_name="Unknown Person")
-        assert "No se encontraron art�culos" in result2
+        assert "No se encontraron artículos" in result2
 
         # Test role with no people
         result3 = tool.execute(role="NonexistentRole")
@@ -673,7 +673,7 @@ class TestToolIntegration:
         assert "Integration Test" in result
         sources = manager.get_last_sources()
         assert len(sources) == 1
-        assert sources[0]["text"] == "Art�culo: Integration Test"
+        assert sources[0]["text"] == "Artículo: Integration Test"
 
     def test_people_search_tool_integration(self):
         """
