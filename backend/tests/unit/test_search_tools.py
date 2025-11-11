@@ -11,15 +11,16 @@ Tests cover:
 Run with: pytest tests/unit/test_search_tools.py -v
 """
 
-import pytest
 from unittest.mock import Mock
-from search_tools import ArticleSearchTool, PeopleSearchTool, ToolManager, Tool
-from vector_store import SearchResults
 
+import pytest
+from search_tools import ArticleSearchTool, PeopleSearchTool, Tool, ToolManager
+from vector_store import SearchResults
 
 # ============================================================================
 # ARTICLE SEARCH TOOL TESTS
 # ============================================================================
+
 
 class TestArticleSearchTool:
     """Test ArticleSearchTool functionality."""
@@ -65,7 +66,7 @@ class TestArticleSearchTool:
             documents=["Test content from article"],
             metadata=[{"article_title": "Test Article"}],
             distances=[0.5],
-            error=None
+            error=None,
         )
         mock_store.search.return_value = search_results
         mock_store.get_article_link.return_value = "https://example.com/test"
@@ -144,7 +145,7 @@ class TestArticleSearchTool:
             documents=["Content"],
             metadata=[{"article_title": "Filtered Article"}],
             distances=[0.3],
-            error=None
+            error=None,
         )
         mock_store.search.return_value = search_results
         mock_store.get_article_link.return_value = None
@@ -152,12 +153,11 @@ class TestArticleSearchTool:
         tool = ArticleSearchTool(mock_store)
 
         # Execute: Search with filter
-        result = tool.execute(query="test", article_title="Filtered Article")
+        _result = tool.execute(query="test", article_title="Filtered Article")
 
         # Verify: article_title was passed to search
         mock_store.search.assert_called_once_with(
-            query="test",
-            article_title="Filtered Article"
+            query="test", article_title="Filtered Article"
         )
 
     def test_format_results_tracks_sources(self):
@@ -177,22 +177,22 @@ class TestArticleSearchTool:
             metadata=[
                 {"article_title": "Article 1"},
                 {"article_title": "Article 2"},
-                {"article_title": "Article 3"}
+                {"article_title": "Article 3"},
             ],
             distances=[0.1, 0.2, 0.3],
-            error=None
+            error=None,
         )
         mock_store.search.return_value = search_results
         mock_store.get_article_link.side_effect = [
             "https://example.com/1",
             "https://example.com/2",
-            None  # Third article has no link
+            None,  # Third article has no link
         ]
 
         tool = ArticleSearchTool(mock_store)
 
         # Execute: Run search
-        result = tool.execute(query="test")
+        _result = tool.execute(query="test")
 
         # Verify: Sources tracked with sequential indices
         assert len(tool.last_sources) == 3
@@ -207,6 +207,7 @@ class TestArticleSearchTool:
 # ============================================================================
 # PEOPLE SEARCH TOOL TESTS
 # ============================================================================
+
 
 class TestPeopleSearchTool:
     """Test PeopleSearchTool functionality."""
@@ -253,7 +254,7 @@ class TestPeopleSearchTool:
                 "nombre": "Alice Smith",
                 "cargo": "CEO",
                 "organizacion": "TechCorp",
-                "datos_interes": "Founder"
+                "datos_interes": "Founder",
             }
         ]
         mock_store.get_article_link.return_value = "https://example.com/article"
@@ -290,7 +291,7 @@ class TestPeopleSearchTool:
                 "nombre": "Bob Jones",
                 "cargo": "CTO",
                 "organizacion": "StartupX",
-                "datos_interes": "Tech lead"
+                "datos_interes": "Tech lead",
             }
         ]
 
@@ -323,7 +324,7 @@ class TestPeopleSearchTool:
                 "organizacion": "CompanyA",
                 "article_title": "News Article",
                 "article_link": "https://example.com/news",
-                "datos_interes": "Industry leader"
+                "datos_interes": "Industry leader",
             }
         ]
 
@@ -356,9 +357,9 @@ class TestPeopleSearchTool:
                 "organizaciones": ["CompanyX"],
                 "articulos": [
                     {"title": "Article 1", "link": "url1"},
-                    {"title": "Article 2", "link": "url2"}
+                    {"title": "Article 2", "link": "url2"},
                 ],
-                "datos_interes": ["Fact 1"]
+                "datos_interes": ["Fact 1"],
             }
         ]
 
@@ -417,7 +418,12 @@ class TestPeopleSearchTool:
             {"title": "Article", "link": "url"}
         ]
         mock_store.get_people_from_article.return_value = [
-            {"nombre": "Person", "cargo": "Role", "organizacion": "", "datos_interes": ""}
+            {
+                "nombre": "Person",
+                "cargo": "Role",
+                "organizacion": "",
+                "datos_interes": "",
+            }
         ]
 
         tool = PeopleSearchTool(mock_store)
@@ -438,6 +444,7 @@ class TestPeopleSearchTool:
 # TOOL MANAGER TESTS
 # ============================================================================
 
+
 class TestToolManager:
     """Test ToolManager functionality."""
 
@@ -455,7 +462,7 @@ class TestToolManager:
         mock_tool = Mock(spec=Tool)
         mock_tool.get_tool_definition.return_value = {
             "name": "test_tool",
-            "description": "Test tool"
+            "description": "Test tool",
         }
 
         # Execute: Register tool
@@ -477,9 +484,7 @@ class TestToolManager:
         # Setup: Mock tool without name
         manager = ToolManager()
         mock_tool = Mock(spec=Tool)
-        mock_tool.get_tool_definition.return_value = {
-            "description": "No name tool"
-        }
+        mock_tool.get_tool_definition.return_value = {"description": "No name tool"}
 
         # Execute & Verify: Should raise error
         with pytest.raises(ValueError, match="Tool must have a 'name'"):
@@ -639,6 +644,7 @@ class TestToolManager:
 # INTEGRATION TESTS
 # ============================================================================
 
+
 class TestToolIntegration:
     """Test tools working together with ToolManager."""
 
@@ -657,7 +663,7 @@ class TestToolIntegration:
             documents=["Test content"],
             metadata=[{"article_title": "Integration Test"}],
             distances=[0.5],
-            error=None
+            error=None,
         )
         mock_store.search.return_value = search_results
         mock_store.get_article_link.return_value = "https://example.com/test"
@@ -690,7 +696,12 @@ class TestToolIntegration:
             {"title": "Person Article", "link": "url"}
         ]
         mock_store.get_people_from_article.return_value = [
-            {"nombre": "Test Person", "cargo": "Role", "organizacion": "", "datos_interes": ""}
+            {
+                "nombre": "Test Person",
+                "cargo": "Role",
+                "organizacion": "",
+                "datos_interes": "",
+            }
         ]
 
         tool = PeopleSearchTool(mock_store)
@@ -698,7 +709,9 @@ class TestToolIntegration:
         manager.register_tool(tool)
 
         # Execute: Run through manager
-        result = manager.execute_tool("search_people_in_articles", person_name="Test Person")
+        result = manager.execute_tool(
+            "search_people_in_articles", person_name="Test Person"
+        )
 
         # Verify: Works correctly
         assert "Test Person" in result

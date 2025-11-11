@@ -8,16 +8,17 @@ This file provides reusable test fixtures including:
 - Mock tools and managers
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
 
 # ============================================================================
 # CONFIG FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def test_config():
@@ -42,6 +43,7 @@ def test_config():
 # ============================================================================
 # MOCK ANTHROPIC API FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def mock_anthropic_response():
@@ -100,6 +102,7 @@ def mock_anthropic_client(mock_anthropic_response):
 # VECTOR STORE FIXTURES
 # ============================================================================
 
+
 @pytest.fixture
 def temp_chroma_path(tmp_path):
     """
@@ -123,9 +126,7 @@ def test_vector_store(temp_chroma_path):
     from vector_store import VectorStore
 
     store = VectorStore(
-        chroma_path=temp_chroma_path,
-        embedding_model="all-MiniLM-L6-v2",
-        max_results=5
+        chroma_path=temp_chroma_path, embedding_model="all-MiniLM-L6-v2", max_results=5
     )
 
     yield store
@@ -133,13 +134,14 @@ def test_vector_store(temp_chroma_path):
     # Cleanup
     try:
         store.clear_all_data()
-    except:
+    except Exception:
         pass
 
 
 # ============================================================================
 # SAMPLE DATA FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def sample_article_data():
@@ -151,23 +153,23 @@ def sample_article_data():
     return {
         "title": "Test Article About AI Technology",
         "content": "This is a test article about artificial intelligence and machine learning. "
-                   "It discusses various aspects of modern AI technology and its applications. "
-                   "The article covers topics like neural networks, deep learning, and NLP.",
+        "It discusses various aspects of modern AI technology and its applications. "
+        "The article covers topics like neural networks, deep learning, and NLP.",
         "link": "https://example.com/test-article",
         "people": [
             {
                 "nombre": "Dr. Jane Smith",
                 "cargo": "AI Researcher",
                 "organizacion": "Tech University",
-                "datos_interes": "Leading expert in machine learning"
+                "datos_interes": "Leading expert in machine learning",
             },
             {
                 "nombre": "John Doe",
                 "cargo": "CTO",
                 "organizacion": "AI Corp",
-                "datos_interes": "Pioneer in AI applications"
-            }
-        ]
+                "datos_interes": "Pioneer in AI applications",
+            },
+        ],
     }
 
 
@@ -191,13 +193,14 @@ Personas Mencionadas:
 Enlace: {sample_article_data['link']}
 """
 
-    article_path.write_text(content, encoding='utf-8')
+    article_path.write_text(content, encoding="utf-8")
     return str(article_path)
 
 
 # ============================================================================
 # MOCK TOOL FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def mock_search_tool():
@@ -215,27 +218,27 @@ def mock_search_tool():
             result += f" in article: {article_title}"
 
         # Simulate storing sources
-        tool.last_sources = [{
-            "text": "Test Article",
-            "url": "https://example.com/test",
-            "index": 1
-        }]
+        tool.last_sources = [
+            {"text": "Test Article", "url": "https://example.com/test", "index": 1}
+        ]
 
         return result
 
     tool.execute = mock_execute
-    tool.get_tool_definition = Mock(return_value={
-        "name": "search_news_content",
-        "description": "Search news articles",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "article_title": {"type": "string"}
+    tool.get_tool_definition = Mock(
+        return_value={
+            "name": "search_news_content",
+            "description": "Search news articles",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "article_title": {"type": "string"},
+                },
+                "required": ["query"],
             },
-            "required": ["query"]
         }
-    })
+    )
 
     return tool
 
@@ -258,6 +261,7 @@ def mock_tool_manager(mock_search_tool):
 # CLEANUP FIXTURES
 # ============================================================================
 
+
 @pytest.fixture(autouse=True)
 def cleanup_temp_chroma():
     """
@@ -272,5 +276,5 @@ def cleanup_temp_chroma():
     for chroma_dir in temp_dir.glob("test_chroma_*"):
         try:
             shutil.rmtree(chroma_dir)
-        except:
+        except Exception:
             pass

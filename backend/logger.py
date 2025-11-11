@@ -9,11 +9,9 @@ Este módulo proporciona una configuración centralizada de logging que:
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
-from typing import Optional
-import os
-
 
 # Formato del log: [2025-10-30 14:23:45] [INFO] [module_name] mensaje
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
@@ -47,7 +45,7 @@ def get_log_level_from_env() -> int:
     return level_mapping.get(level_name, DEFAULT_LOG_LEVEL)
 
 
-def setup_logging(level: Optional[int] = None) -> None:
+def setup_logging(level: int | None = None) -> None:
     """
     Configura el sistema de logging con handlers para consola y archivo.
 
@@ -94,7 +92,9 @@ def setup_logging(level: Optional[int] = None) -> None:
         root_logger.warning(f"No se pudo crear archivo de log {LOG_FILE}: {e}")
 
     # Log inicial indicando configuración
-    root_logger.info(f"Logging configurado - nivel={logging.getLevelName(level)}, archivo={LOG_FILE}")
+    root_logger.info(
+        f"Logging configurado - nivel={logging.getLevelName(level)}, archivo={LOG_FILE}"
+    )
 
 
 def get_logger(name: str) -> logging.Logger:

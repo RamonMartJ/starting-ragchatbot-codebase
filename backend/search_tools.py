@@ -1,7 +1,8 @@
-from typing import Dict, Any, Optional, List
 from abc import ABC, abstractmethod
-from vector_store import VectorStore, SearchResults
+from typing import Any
+
 from logger import get_logger
+from vector_store import SearchResults, VectorStore
 
 # Initialize logger for this module
 logger = get_logger(__name__)
@@ -9,12 +10,12 @@ logger = get_logger(__name__)
 
 class Tool(ABC):
     """Abstract base class for all tools"""
-    
+
     @abstractmethod
-    def get_tool_definition(self) -> Dict[str, Any]:
+    def get_tool_definition(self) -> dict[str, Any]:
         """Return Anthropic tool definition for this tool"""
         pass
-    
+
     @abstractmethod
     def execute(self, **kwargs) -> str:
         """Execute the tool with given parameters"""
@@ -28,7 +29,7 @@ class ArticleSearchTool(Tool):
         self.store = vector_store
         self.last_sources = []  # Track sources from last search
 
-    def get_tool_definition(self) -> Dict[str, Any]:
+    def get_tool_definition(self) -> dict[str, Any]:
         """Return Anthropic tool definition for this tool"""
         return {
             "name": "search_news_content",
@@ -38,18 +39,18 @@ class ArticleSearchTool(Tool):
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Qué buscar en el contenido de las noticias"
+                        "description": "Qué buscar en el contenido de las noticias",
                     },
                     "article_title": {
                         "type": "string",
-                        "description": "Título del artículo para filtrar (coincidencias parciales funcionan)"
-                    }
+                        "description": "Título del artículo para filtrar (coincidencias parciales funcionan)",
+                    },
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         }
 
-    def execute(self, query: str, article_title: Optional[str] = None) -> str:
+    def execute(self, query: str, article_title: str | None = None) -> str:
         """
         Execute the search tool with given parameters.
 
@@ -61,13 +62,12 @@ class ArticleSearchTool(Tool):
             Formatted search results or error message
         """
         # Log the search execution
-        logger.info(f"ArticleSearchTool.execute(query='{query[:50]}...', article_title='{article_title}')")
+        logger.info(
+            f"ArticleSearchTool.execute(query='{query[:50]}...', article_title='{article_title}')"
+        )
 
         # Use the vector store's unified search interface
-        results = self.store.search(
-            query=query,
-            article_title=article_title
-        )
+        results = self.store.search(query=query, article_title=article_title)
 
         # Handle errors
         if results.error:
@@ -85,7 +85,7 @@ class ArticleSearchTool(Tool):
         # Format and return results
         logger.info(f"Found {len(results.documents)} documents for query")
         return self._format_results(results)
-    
+
     def _format_results(self, results: SearchResults) -> str:
         """
         Format search results with article context.
@@ -103,8 +103,10 @@ class ArticleSearchTool(Tool):
         formatted = []
         sources = []  # Track sources with URLs for the UI
 
-        for idx, (doc, meta) in enumerate(zip(results.documents, results.metadata), start=1):
-            article_title = meta.get('article_title', 'unknown')
+        for idx, (doc, meta) in enumerate(
+            zip(results.documents, results.metadata, strict=True), start=1
+        ):
+            article_title = meta.get("article_title", "unknown")
 
             # Build context header for Claude
             header = f"[Artículo: {article_title}]"
@@ -116,11 +118,13 @@ class ArticleSearchTool(Tool):
             article_link = self.store.get_article_link(article_title)
 
             # Store source as dict with text, optional URL, and sequential index
-            sources.append({
-                "text": source_text,
-                "url": article_link,  # None if no link available
-                "index": idx  # Sequential index for academic citations [1], [2], etc.
-            })
+            sources.append(
+                {
+                    "text": source_text,
+                    "url": article_link,  # None if no link available
+                    "index": idx,  # Sequential index for academic citations [1], [2], etc.
+                }
+            )
 
             formatted.append(f"{header}\n{doc}")
 
@@ -146,7 +150,7 @@ class PeopleSearchTool(Tool):
         self.store = vector_store
         self.last_sources = []  # Track sources from last search
 
-    def get_tool_definition(self) -> Dict[str, Any]:
+    def get_tool_definition(self) -> dict[str, Any]:
         """Return Anthropic tool definition for this tool"""
         return {
             "name": "search_people_in_articles",
@@ -156,26 +160,26 @@ class PeopleSearchTool(Tool):
                 "properties": {
                     "article_title": {
                         "type": "string",
-                        "description": "Título del artículo para listar todas las personas mencionadas (opcional)"
+                        "description": "Título del artículo para listar todas las personas mencionadas (opcional)",
                     },
                     "person_name": {
                         "type": "string",
-                        "description": "Nombre de la persona para buscar en qué artículos aparece (opcional)"
+                        "description": "Nombre de la persona para buscar en qué artículos aparece (opcional)",
                     },
                     "role": {
                         "type": "string",
-                        "description": "Cargo o rol para buscar personas (ej: 'Periodista', 'Presidente') (opcional)"
-                    }
+                        "description": "Cargo o rol para buscar personas (ej: 'Periodista', 'Presidente') (opcional)",
+                    },
                 },
-                "required": []  # All parameters are optional - no params returns all people by frequency
-            }
+                "required": [],  # All parameters are optional - no params returns all people by frequency
+            },
         }
 
     def execute(
         self,
-        article_title: Optional[str] = None,
-        person_name: Optional[str] = None,
-        role: Optional[str] = None
+        article_title: str | None = None,
+        person_name: str | None = None,
+        role: str | None = None,
     ) -> str:
         """
         Execute the people search tool with given parameters.
@@ -196,7 +200,9 @@ class PeopleSearchTool(Tool):
         Returns:
             Formatted results with person information and article context
         """
-        logger.info(f"PeopleSearchTool.execute(article_title={article_title}, person_name={person_name}, role={role})")
+        logger.info(
+            f"PeopleSearchTool.execute(article_title={article_title}, person_name={person_name}, role={role})"
+        )
 
         # Reset sources for new search
         self.last_sources = []
@@ -221,15 +227,19 @@ class PeopleSearchTool(Tool):
             logger.info(f"Found {len(people_list)} people in article")
             if people_list:
                 article_link = self.store.get_article_link(article_title)
-                result = self._format_people_in_article(article_title, article_link, people_list)
+                result = self._format_people_in_article(
+                    article_title, article_link, people_list
+                )
                 results.append(result)
 
                 # Store source for UI
-                self.last_sources.append({
-                    "text": f"Personas en: {article_title}",
-                    "url": article_link,
-                    "index": len(self.last_sources) + 1
-                })
+                self.last_sources.append(
+                    {
+                        "text": f"Personas en: {article_title}",
+                        "url": article_link,
+                        "index": len(self.last_sources) + 1,
+                    }
+                )
             else:
                 logger.warning(f"No people found in article '{article_title}'")
                 return f"No se encontraron personas registradas en el artículo '{article_title}'."
@@ -242,24 +252,28 @@ class PeopleSearchTool(Tool):
             if articles:
                 for article in articles:
                     # Get people details from each article
-                    people_list = self.store.get_people_from_article(article['title'])
+                    people_list = self.store.get_people_from_article(article["title"])
                     # Filter to only show the requested person
-                    matching_person = [p for p in people_list if person_name.lower() in p.get('nombre', '').lower()]
+                    matching_person = [
+                        p
+                        for p in people_list
+                        if person_name.lower() in p.get("nombre", "").lower()
+                    ]
 
                     if matching_person:
                         result = self._format_person_in_context(
-                            matching_person[0],
-                            article['title'],
-                            article.get('link')
+                            matching_person[0], article["title"], article.get("link")
                         )
                         results.append(result)
 
                         # Store source for UI
-                        self.last_sources.append({
-                            "text": f"{person_name} en: {article['title']}",
-                            "url": article.get('link'),
-                            "index": len(self.last_sources) + 1
-                        })
+                        self.last_sources.append(
+                            {
+                                "text": f"{person_name} en: {article['title']}",
+                                "url": article.get("link"),
+                                "index": len(self.last_sources) + 1,
+                            }
+                        )
             else:
                 logger.warning(f"No articles found mentioning '{person_name}'")
                 return f"No se encontraron artículos que mencionen a '{person_name}'."
@@ -275,24 +289,30 @@ class PeopleSearchTool(Tool):
 
                 # Store sources for each person's article
                 for person in people:
-                    self.last_sources.append({
-                        "text": f"{person.get('nombre')} en: {person.get('article_title')}",
-                        "url": person.get('article_link'),
-                        "index": len(self.last_sources) + 1
-                    })
+                    self.last_sources.append(
+                        {
+                            "text": f"{person.get('nombre')} en: {person.get('article_title')}",
+                            "url": person.get("article_link"),
+                            "index": len(self.last_sources) + 1,
+                        }
+                    )
             else:
                 logger.warning(f"No people found with role '{role}'")
                 return f"No se encontraron personas con el cargo '{role}'."
 
-        final_result = "\n\n".join(results) if results else "No se encontraron resultados."
-        logger.info(f"Returning {len(results)} results, {len(self.last_sources)} sources")
+        final_result = (
+            "\n\n".join(results) if results else "No se encontraron resultados."
+        )
+        logger.info(
+            f"Returning {len(results)} results, {len(self.last_sources)} sources"
+        )
         return final_result
 
     def _format_people_in_article(
         self,
         article_title: str,
-        article_link: Optional[str],
-        people: List[Dict[str, Any]]
+        article_link: str | None,
+        people: list[dict[str, Any]],
     ) -> str:
         """
         Format list of people mentioned in an article.
@@ -307,20 +327,17 @@ class PeopleSearchTool(Tool):
 
         for person in people:
             lines.append(f"- {person.get('nombre')}")
-            if person.get('cargo'):
+            if person.get("cargo"):
                 lines.append(f"  Cargo: {person.get('cargo')}")
-            if person.get('organizacion'):
+            if person.get("organizacion"):
                 lines.append(f"  Organización: {person.get('organizacion')}")
-            if person.get('datos_interes'):
+            if person.get("datos_interes"):
                 lines.append(f"  Datos: {person.get('datos_interes')}")
 
         return "\n".join(lines)
 
     def _format_person_in_context(
-        self,
-        person: Dict[str, Any],
-        article_title: str,
-        article_link: Optional[str]
+        self, person: dict[str, Any], article_title: str, article_link: str | None
     ) -> str:
         """
         Format a person's information with article context.
@@ -333,16 +350,16 @@ class PeopleSearchTool(Tool):
         if article_link:
             lines.append(f"Enlace: {article_link}")
 
-        if person.get('cargo'):
+        if person.get("cargo"):
             lines.append(f"Cargo: {person.get('cargo')}")
-        if person.get('organizacion'):
+        if person.get("organizacion"):
             lines.append(f"Organización: {person.get('organizacion')}")
-        if person.get('datos_interes'):
+        if person.get("datos_interes"):
             lines.append(f"Datos de interés: {person.get('datos_interes')}")
 
         return "\n".join(lines)
 
-    def _format_people_by_role(self, role: str, people: List[Dict[str, Any]]) -> str:
+    def _format_people_by_role(self, role: str, people: list[dict[str, Any]]) -> str:
         """
         Format list of people filtered by role.
 
@@ -354,18 +371,18 @@ class PeopleSearchTool(Tool):
 
         for person in people:
             lines.append(f"- {person.get('nombre')}")
-            if person.get('organizacion'):
+            if person.get("organizacion"):
                 lines.append(f"  Organización: {person.get('organizacion')}")
             lines.append(f"  Artículo: {person.get('article_title')}")
-            if person.get('article_link'):
+            if person.get("article_link"):
                 lines.append(f"  Enlace: {person.get('article_link')}")
-            if person.get('datos_interes'):
+            if person.get("datos_interes"):
                 lines.append(f"  Datos: {person.get('datos_interes')}")
             lines.append("")  # Empty line between people
 
         return "\n".join(lines)
 
-    def _format_all_people(self, people: List[Dict[str, Any]]) -> str:
+    def _format_all_people(self, people: list[dict[str, Any]]) -> str:
         """
         Format all people ordered by frequency of appearance.
 
@@ -388,15 +405,17 @@ class PeopleSearchTool(Tool):
         lines.append(f"Total de personas: {len(people)}\n")
 
         for person in people:
-            nombre = person.get('nombre')
-            frecuencia = person.get('frecuencia', 0)
-            cargos = person.get('cargos', [])
-            organizaciones = person.get('organizaciones', [])
-            articulos = person.get('articulos', [])
-            datos = person.get('datos_interes', [])
+            nombre = person.get("nombre")
+            frecuencia = person.get("frecuencia", 0)
+            cargos = person.get("cargos", [])
+            organizaciones = person.get("organizaciones", [])
+            articulos = person.get("articulos", [])
+            datos = person.get("datos_interes", [])
 
             # Person header with frequency
-            lines.append(f"- {nombre} (mencionado en {frecuencia} artículo{'s' if frecuencia > 1 else ''})")
+            lines.append(
+                f"- {nombre} (mencionado en {frecuencia} artículo{'s' if frecuencia > 1 else ''})"
+            )
 
             # Show roles
             if cargos:
@@ -408,25 +427,27 @@ class PeopleSearchTool(Tool):
 
             # Show articles
             if articulos:
-                lines.append(f"  Aparece en:")
+                lines.append("  Aparece en:")
                 for idx, articulo in enumerate(articulos, 1):
-                    article_title = articulo.get('title')
-                    article_link = articulo.get('link')
+                    article_title = articulo.get("title")
+                    article_link = articulo.get("link")
 
                     lines.append(f"    {idx}. {article_title}")
 
                     # Store source for UI
                     source_idx = len(self.last_sources) + 1
-                    self.last_sources.append({
-                        "text": f"{nombre} en: {article_title}",
-                        "url": article_link,
-                        "index": source_idx
-                    })
+                    self.last_sources.append(
+                        {
+                            "text": f"{nombre} en: {article_title}",
+                            "url": article_link,
+                            "index": source_idx,
+                        }
+                    )
 
             # Show interesting facts
             if datos:
-                lines.append(f"  Datos de interés:")
-                for idx, dato in enumerate(datos, 1):
+                lines.append("  Datos de interés:")
+                for dato in datos:
                     lines.append(f"    - {dato}")
 
             lines.append("")  # Empty line between people
@@ -436,10 +457,10 @@ class PeopleSearchTool(Tool):
 
 class ToolManager:
     """Manages available tools for the AI"""
-    
+
     def __init__(self):
         self.tools = {}
-    
+
     def register_tool(self, tool: Tool):
         """Register any tool that implements the Tool interface"""
         tool_def = tool.get_tool_definition()
@@ -448,28 +469,27 @@ class ToolManager:
             raise ValueError("Tool must have a 'name' in its definition")
         self.tools[tool_name] = tool
 
-    
     def get_tool_definitions(self) -> list:
         """Get all tool definitions for Anthropic tool calling"""
         return [tool.get_tool_definition() for tool in self.tools.values()]
-    
+
     def execute_tool(self, tool_name: str, **kwargs) -> str:
         """Execute a tool by name with given parameters"""
         if tool_name not in self.tools:
             return f"Tool '{tool_name}' not found"
-        
+
         return self.tools[tool_name].execute(**kwargs)
-    
+
     def get_last_sources(self) -> list:
         """Get sources from the last search operation"""
         # Check all tools for last_sources attribute
         for tool in self.tools.values():
-            if hasattr(tool, 'last_sources') and tool.last_sources:
+            if hasattr(tool, "last_sources") and tool.last_sources:
                 return tool.last_sources
         return []
 
     def reset_sources(self):
         """Reset sources from all tools that track sources"""
         for tool in self.tools.values():
-            if hasattr(tool, 'last_sources'):
+            if hasattr(tool, "last_sources"):
                 tool.last_sources = []

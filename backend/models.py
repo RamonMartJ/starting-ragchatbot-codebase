@@ -1,4 +1,3 @@
-from typing import List, Dict, Optional
 from pydantic import BaseModel
 
 # ============================================================================
@@ -7,6 +6,7 @@ from pydantic import BaseModel
 # These models represent the core domain entities for news articles.
 # Used by DocumentProcessor to parse article documents and by VectorStore
 # to organize content in ChromaDB collections.
+
 
 class Person(BaseModel):
     """
@@ -25,10 +25,12 @@ class Person(BaseModel):
     - organizacion: Organization or entity affiliation
     - datos_interes: Additional contextual information
     """
-    nombre: str                              # Full name (required)
-    cargo: Optional[str] = None             # Role/occupation
-    organizacion: Optional[str] = None       # Organization/entity
-    datos_interes: Optional[str] = None      # Additional relevant data
+
+    nombre: str  # Full name (required)
+    cargo: str | None = None  # Role/occupation
+    organizacion: str | None = None  # Organization/entity
+    datos_interes: str | None = None  # Additional relevant data
+
 
 class Article(BaseModel):
     """
@@ -47,9 +49,11 @@ class Article(BaseModel):
     - [contenido]
     - Enlace: [url]
     """
-    title: str                          # Article headline (used as unique ID)
-    article_link: Optional[str] = None  # URL link to the original article
-    people: List['Person'] = []         # List of people mentioned in the article
+
+    title: str  # Article headline (used as unique ID)
+    article_link: str | None = None  # URL link to the original article
+    people: list["Person"] = []  # List of people mentioned in the article
+
 
 class ArticleChunk(BaseModel):
     """
@@ -67,15 +71,18 @@ class ArticleChunk(BaseModel):
     - ~800 characters per chunk with 100 char overlap
     - Maintains article title context for filtering
     """
-    content: str                        # The actual text content
-    article_title: str                  # Which article this belongs to (for filtering)
-    chunk_index: int                    # Sequential position in document
+
+    content: str  # The actual text content
+    article_title: str  # Which article this belongs to (for filtering)
+    chunk_index: int  # Sequential position in document
+
 
 # ============================================================================
 # API REQUEST/RESPONSE MODELS - FastAPI endpoint contracts
 # ============================================================================
 # These models define the API contract between frontend and backend.
 # Used for request validation, response serialization, and API documentation.
+
 
 class Source(BaseModel):
     """
@@ -95,9 +102,11 @@ class Source(BaseModel):
         "index": 1
     }
     """
-    text: str                    # Display text for the source (e.g., "Artículo: [título]")
-    url: Optional[str] = None    # Article URL (None if no link available)
-    index: int                   # Citation number for academic-style references [1], [2]
+
+    text: str  # Display text for the source (e.g., "Artículo: [título]")
+    url: str | None = None  # Article URL (None if no link available)
+    index: int  # Citation number for academic-style references [1], [2]
+
 
 class QueryRequest(BaseModel):
     """
@@ -115,8 +124,10 @@ class QueryRequest(BaseModel):
         "session_id": "session_1"  // optional
     }
     """
-    query: str                      # User's question or search query
-    session_id: Optional[str] = None  # Optional session ID for conversation history
+
+    query: str  # User's question or search query
+    session_id: str | None = None  # Optional session ID for conversation history
+
 
 class QueryResponse(BaseModel):
     """
@@ -138,9 +149,11 @@ class QueryResponse(BaseModel):
         "session_id": "session_1"
     }
     """
-    answer: str           # AI-generated response from Claude
-    sources: List[Source] # List of source citations with optional URLs
-    session_id: str       # Session ID for maintaining conversation context
+
+    answer: str  # AI-generated response from Claude
+    sources: list[Source]  # List of source citations with optional URLs
+    session_id: str  # Session ID for maintaining conversation context
+
 
 class ArticleStats(BaseModel):
     """
@@ -162,5 +175,6 @@ class ArticleStats(BaseModel):
         ]
     }
     """
-    total_articles: int       # Total number of articles in vector store
-    article_titles: List[str] # List of all article titles (chronological order)
+
+    total_articles: int  # Total number of articles in vector store
+    article_titles: list[str]  # List of all article titles (chronological order)

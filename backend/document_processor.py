@@ -1,6 +1,6 @@
 import os
 import re
-from typing import List, Tuple
+
 from models import Article, ArticleChunk, Person
 
 
@@ -14,14 +14,14 @@ class DocumentProcessor:
     def read_file(self, file_path: str) -> str:
         """Read content from file with UTF-8 encoding"""
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
+            with open(file_path, encoding="utf-8") as file:
                 return file.read()
         except UnicodeDecodeError:
             # If UTF-8 fails, try with error handling
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+            with open(file_path, encoding="utf-8", errors="ignore") as file:
                 return file.read()
 
-    def chunk_text(self, text: str) -> List[str]:
+    def chunk_text(self, text: str) -> list[str]:
         """Split text into sentence-based chunks with overlap using config settings"""
 
         # Clean up the text
@@ -121,7 +121,7 @@ class DocumentProcessor:
 
             # Ensure we have at least a name
             if not parts or not parts[0]:
-                print(f"[WARNING] No name found in person line")
+                print("[WARNING] No name found in person line")
                 return None
 
             # Extract fields (with defaults for missing parts)
@@ -132,26 +132,31 @@ class DocumentProcessor:
 
             # Clean empty strings to None
             cargo = cargo if cargo and cargo.strip() else None
-            organizacion = organizacion if organizacion and organizacion.strip() else None
-            datos_interes = datos_interes if datos_interes and datos_interes.strip() else None
+            organizacion = (
+                organizacion if organizacion and organizacion.strip() else None
+            )
+            datos_interes = (
+                datos_interes if datos_interes and datos_interes.strip() else None
+            )
 
             person = Person(
                 nombre=nombre,
                 cargo=cargo,
                 organizacion=organizacion,
-                datos_interes=datos_interes
+                datos_interes=datos_interes,
             )
             print(f"[DEBUG] Created person: {person.nombre} ({person.cargo})")
             return person
         except Exception as e:
             print(f"[ERROR] Error parsing person line '{line}': {e}")
             import traceback
+
             traceback.print_exc()
             return None
 
     def process_article_document(
         self, file_path: str
-    ) -> Tuple[Article, List[ArticleChunk]]:
+    ) -> tuple[Article, list[ArticleChunk]]:
         """
         Process a news article document with expected format:
         Line 1: Titular: [título]
@@ -195,7 +200,9 @@ class DocumentProcessor:
                 continue
 
             # Check for people section marker
-            people_section_match = re.match(r"^Personas\s+Mencionadas:\s*$", line, re.IGNORECASE)
+            people_section_match = re.match(
+                r"^Personas\s+Mencionadas:\s*$", line, re.IGNORECASE
+            )
             if people_section_match:
                 in_people_section = True
                 i += 1
@@ -230,9 +237,7 @@ class DocumentProcessor:
 
         # Create Article object
         article = Article(
-            title=article_title,
-            article_link=article_link,
-            people=article_people
+            title=article_title, article_link=article_link, people=article_people
         )
 
         # Combine article content and create chunks

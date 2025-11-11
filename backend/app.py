@@ -1,17 +1,16 @@
 import warnings
-
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-import os
 
 from config import config
-from rag_system import RAGSystem
-from models import QueryRequest, QueryResponse, ArticleStats
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from logger import get_logger
+from models import ArticleStats, QueryRequest, QueryResponse
+from rag_system import RAGSystem
 
 # Initialize logger for this module
 logger = get_logger(__name__)
@@ -25,6 +24,7 @@ warnings.filterwarnings("ignore", message="resource_tracker: There appear to be.
 # during lifespan context. This ensures all components are ready before
 # the lifespan startup phase executes.
 rag_system = RAGSystem(config)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -62,7 +62,9 @@ async def lifespan(app: FastAPI):
         try:
             # Process all .txt files in docs folder
             # Returns: (num_articles: int, num_chunks: int)
-            articles, chunks = rag_system.add_articles_folder(str(docs_path), clear_existing=False)
+            articles, chunks = rag_system.add_articles_folder(
+                str(docs_path), clear_existing=False
+            )
             logger.info(f"Successfully loaded {articles} articles with {chunks} chunks")
         except Exception as e:
             logger.error(f"Error loading documents: {e}", exc_info=True)
@@ -74,15 +76,12 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN: Cleanup resources (extend as needed)
     logger.info("Shutting down application")
 
+
 # ============================================================================
 # FASTAPI APP INITIALIZATION
 # ============================================================================
 # Initialize FastAPI app with lifespan context manager for proper startup/shutdown
-app = FastAPI(
-    title="Course Materials RAG System",
-    root_path="",
-    lifespan=lifespan
-)
+app = FastAPI(title="Course Materials RAG System", root_path="", lifespan=lifespan)
 
 # ============================================================================
 # MIDDLEWARE CONFIGURATION
@@ -93,8 +92,7 @@ app = FastAPI(
 # Trusted Host Middleware: Accept requests from any host (for proxy compatibility)
 # In production: Restrict to specific domains
 app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["*"]  # Allow all hosts (development only)
+    TrustedHostMiddleware, allowed_hosts=["*"]  # Allow all hosts (development only)
 )
 
 # CORS Middleware: Enable cross-origin requests from any origin
@@ -102,11 +100,11 @@ app.add_middleware(
 # In production: Restrict allow_origins to specific frontend URLs
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],           # Allow all origins (development only)
-    allow_credentials=True,        # Allow cookies/auth headers
-    allow_methods=["*"],           # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],           # Allow all request headers
-    expose_headers=["*"],          # Expose all response headers to frontend
+    allow_origins=["*"],  # Allow all origins (development only)
+    allow_credentials=True,  # Allow cookies/auth headers
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all request headers
+    expose_headers=["*"],  # Expose all response headers to frontend
 )
 
 # ============================================================================
@@ -114,6 +112,7 @@ app.add_middleware(
 # ============================================================================
 # FastAPI endpoints for handling user queries and course statistics.
 # All Pydantic models are defined in models.py for centralized management.
+
 
 @app.post("/api/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
@@ -148,7 +147,9 @@ async def query_documents(request: QueryRequest):
             session_id = rag_system.session_manager.create_session()
 
         # Log query received
-        query_preview = request.query[:50] + "..." if len(request.query) > 50 else request.query
+        query_preview = (
+            request.query[:50] + "..." if len(request.query) > 50 else request.query
+        )
         logger.info(f"Query received: '{query_preview}' session={session_id}")
 
         # Process query using RAG system (retrieval + AI generation)
@@ -158,15 +159,12 @@ async def query_documents(request: QueryRequest):
         # Log successful response
         logger.info(f"Query successful, {len(sources)} sources returned")
 
-        return QueryResponse(
-            answer=answer,
-            sources=sources,
-            session_id=session_id
-        )
+        return QueryResponse(answer=answer, sources=sources, session_id=session_id)
     except Exception as e:
         # Log error with full traceback
         logger.error(f"Query failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/articles", response_model=ArticleStats)
 async def get_article_stats():
@@ -193,19 +191,18 @@ async def get_article_stats():
         logger.info(f"Article stats retrieved: {analytics['total_articles']} articles")
         return ArticleStats(
             total_articles=analytics["total_articles"],
-            article_titles=analytics["article_titles"]
+            article_titles=analytics["article_titles"],
         )
     except Exception as e:
         logger.error(f"Failed to retrieve article stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============================================================================
 # STATIC FILE SERVING
 # ============================================================================
 # Serves frontend HTML/CSS/JS files from ../frontend directory.
 # Mounted at root "/" so frontend is accessible at http://localhost:8000
-
-from fastapi.responses import FileResponse
 
 
 class DevStaticFiles(StaticFiles):
@@ -227,6 +224,7 @@ class DevStaticFiles(StaticFiles):
     - Remove this class and use standard StaticFiles
     - Enable caching for better performance (Cache-Control: max-age=3600)
     """
+
     async def get_response(self, path: str, scope):
         # Get response from parent StaticFiles class
         response = await super().get_response(path, scope)
@@ -235,7 +233,7 @@ class DevStaticFiles(StaticFiles):
         if isinstance(response, FileResponse):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"  # HTTP/1.0 compatibility
-            response.headers["Expires"] = "0"        # Force immediate expiration
+            response.headers["Expires"] = "0"  # Force immediate expiration
 
         return response
 

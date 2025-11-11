@@ -1,9 +1,11 @@
+from typing import Any
+
 import anthropic
-from typing import List, Optional, Dict, Any
 from logger import get_logger
 
 # Initialize logger for this module
 logger = get_logger(__name__)
+
 
 class AIGenerator:
     """Handles interactions with Anthropic's Claude API for generating responses"""
@@ -83,22 +85,22 @@ Proporciona solo la respuesta directa a lo que se preguntó.
     # Round-specific instructions for adaptive prompting
     ROUND_SPECIFIC_INSTRUCTIONS = {
         1: "\n\n**[Ronda 1/2]** Usa herramientas si necesitas información específica. Podrás solicitar más búsquedas después de ver resultados.",
-        2: "\n\n**[Ronda 2/2 - FINAL]** Última oportunidad para usar herramientas. Si tienes información suficiente, proporciona tu respuesta final."
+        2: "\n\n**[Ronda 2/2 - FINAL]** Última oportunidad para usar herramientas. Si tienes información suficiente, proporciona tu respuesta final.",
     }
 
     def __init__(self, api_key: str, model: str):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
-        
-        # Pre-build base API parameters
-        self.base_params = {
-            "model": self.model,
-            "temperature": 0,
-            "max_tokens": 800
-        }
 
-    def _call_api(self, messages: List[Dict[str, Any]], system_content: str,
-                  tools: Optional[List] = None):
+        # Pre-build base API parameters
+        self.base_params = {"model": self.model, "temperature": 0, "max_tokens": 800}
+
+    def _call_api(
+        self,
+        messages: list[dict[str, Any]],
+        system_content: str,
+        tools: list | None = None,
+    ):
         """
         Make a single API call to Claude.
 
@@ -115,21 +117,24 @@ Proporciona solo la respuesta directa a lo que se preguntó.
         api_params = {
             **self.base_params,
             "messages": messages,
-            "system": system_content
+            "system": system_content,
         }
 
         if tools:
             api_params["tools"] = tools
             api_params["tool_choice"] = {"type": "auto"}
 
-        logger.debug(f"API call - {len(messages)} messages, tools={'enabled' if tools else 'disabled'}")
+        logger.debug(
+            f"API call - {len(messages)} messages, tools={'enabled' if tools else 'disabled'}"
+        )
         response = self.client.messages.create(**api_params)
         logger.debug(f"API response - stop_reason={response.stop_reason}")
 
         return response
 
-    def _execute_tools_and_update_messages(self, response, messages: List[Dict[str, Any]],
-                                          tool_manager) -> List[Dict[str, Any]]:
+    def _execute_tools_and_update_messages(
+        self, response, messages: list[dict[str, Any]], tool_manager
+    ) -> list[dict[str, Any]]:
         """
         Execute all tool calls in response and update message history.
 
@@ -160,16 +165,17 @@ Proporciona solo la respuesta directa a lo que se preguntó.
 
                 try:
                     result = tool_manager.execute_tool(
-                        content_block.name,
-                        **content_block.input
+                        content_block.name, **content_block.input
                     )
                     logger.debug(f"Tool result length: {len(result)} chars")
 
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": content_block.id,
-                        "content": result
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": content_block.id,
+                            "content": result,
+                        }
+                    )
                 except Exception as e:
                     logger.error(f"Tool execution failed: {e}", exc_info=True)
                     # Fail-fast: propagate exception immediately
@@ -194,14 +200,15 @@ Proporciona solo la respuesta directa a lo que se preguntó.
             Text content from response
         """
         for block in response.content:
-            if hasattr(block, 'text'):
+            if hasattr(block, "text"):
                 return block.text
 
         logger.warning("No text content found in response")
         return ""
 
-    def _build_system_prompt(self, conversation_history: Optional[str],
-                            round_number: int) -> str:
+    def _build_system_prompt(
+        self, conversation_history: str | None, round_number: int
+    ) -> str:
         """
         Build system content with optional conversation history and round-specific instructions.
 
@@ -225,10 +232,13 @@ Proporciona solo la respuesta directa a lo que se preguntó.
 
         return prompt
 
-    def generate_response(self, query: str,
-                         conversation_history: Optional[str] = None,
-                         tools: Optional[List] = None,
-                         tool_manager=None) -> str:
+    def generate_response(
+        self,
+        query: str,
+        conversation_history: str | None = None,
+        tools: list | None = None,
+        tool_manager=None,
+    ) -> str:
         """
         Generate AI response with up to 2 sequential tool calling rounds.
 
@@ -259,10 +269,14 @@ Proporciona solo la respuesta directa a lo que se preguntó.
             # Main loop: Up to MAX_TOOL_ROUNDS iterations
             while current_round < self.MAX_TOOL_ROUNDS:
                 current_round += 1
-                logger.info(f"Starting tool round {current_round}/{self.MAX_TOOL_ROUNDS}")
+                logger.info(
+                    f"Starting tool round {current_round}/{self.MAX_TOOL_ROUNDS}"
+                )
 
                 # Build adaptive system prompt for this round
-                system_content = self._build_system_prompt(conversation_history, current_round)
+                system_content = self._build_system_prompt(
+                    conversation_history, current_round
+                )
 
                 # Make API call with tools available
                 response = self._call_api(messages, system_content, tools)
@@ -286,8 +300,12 @@ Proporciona solo la respuesta directa a lo que se preguntó.
                 # Check if we've reached max rounds
                 if current_round >= self.MAX_TOOL_ROUNDS:
                     logger.info("Max tool rounds reached - making final API call")
-                    system_content = self._build_system_prompt(conversation_history, current_round)
-                    final_response = self._call_api(messages, system_content, tools=None)
+                    system_content = self._build_system_prompt(
+                        conversation_history, current_round
+                    )
+                    final_response = self._call_api(
+                        messages, system_content, tools=None
+                    )
                     return self._extract_text_response(final_response)
 
             # Safeguard (should never reach here, but defensive programming)
