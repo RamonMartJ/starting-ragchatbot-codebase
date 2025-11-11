@@ -7,7 +7,7 @@ let isLoading = false; // Track if a query is currently being processed
 let originalButtonHTML = ''; // Store original button HTML with icon
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalArticles, articleTitles, newChatButton;
+let chatMessages, chatInput, sendButton, totalArticles, articleTitles, newChatButton, themeToggle;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,11 +18,13 @@ document.addEventListener('DOMContentLoaded', () => {
     totalArticles = document.getElementById('totalArticles');
     articleTitles = document.getElementById('articleTitles');
     newChatButton = document.getElementById('newChatButton');
+    themeToggle = document.getElementById('themeToggle');
 
     // Capture original button HTML once (with SVG icon)
     originalButtonHTML = sendButton.innerHTML;
 
     setupEventListeners();
+    loadThemePreference();
     createNewSession();
     loadArticleStats();
 });
@@ -40,6 +42,17 @@ function setupEventListeners() {
     // New Chat button - clears conversation and starts fresh session
     newChatButton.addEventListener('click', () => {
         createNewSession();
+    });
+
+    // Theme toggle button
+    themeToggle.addEventListener('click', toggleTheme);
+
+    // Keyboard shortcut for theme toggle (Ctrl/Cmd + Shift + D)
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
+            e.preventDefault();
+            toggleTheme();
+        }
     });
 
     // Suggested questions
@@ -295,4 +308,43 @@ async function loadArticleStats() {
             articleTitles.innerHTML = '<span class="error">Error al cargar noticias</span>';
         }
     }
+}
+
+// Theme Management Functions
+
+/**
+ * Load theme preference from localStorage and apply it
+ * Falls back to 'light' theme if no preference is saved
+ */
+function loadThemePreference() {
+    // Get saved theme from localStorage, default to 'light'
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+}
+
+/**
+ * Toggle between light and dark themes
+ */
+function toggleTheme() {
+    // Get current theme from document or default to 'light'
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+
+    // Switch to opposite theme
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+    setTheme(newTheme);
+}
+
+/**
+ * Set the theme to the specified value and save to localStorage
+ * @param {string} theme - The theme to apply ('light' or 'dark')
+ */
+function setTheme(theme) {
+    // Apply theme to document
+    document.documentElement.setAttribute('data-theme', theme);
+
+    // Save theme preference to localStorage
+    localStorage.setItem('theme', theme);
+
+    console.log(`Theme set to: ${theme}`);
 }

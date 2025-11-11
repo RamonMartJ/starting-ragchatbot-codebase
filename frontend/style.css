@@ -5,7 +5,7 @@
     padding: 0;
 }
 
-/* CSS Variables - Antena3 Style */
+/* CSS Variables - Antena3 Style (Light Theme - Default) */
 :root {
     --primary-color: #FF6C00;
     --primary-hover: #E65C00;
@@ -24,6 +24,33 @@
     --welcome-bg: #FFF8F3;
     --welcome-border: #FF6C00;
     --header-bg: #1A1A1A;
+    --code-bg: #F0F0F0;
+    --code-text: #D63384;
+    --pre-bg: #F8F8F8;
+}
+
+/* Dark Theme Variables - activated via [data-theme="dark"] */
+[data-theme="dark"] {
+    --primary-color: #FF8533;
+    --primary-hover: #FFA366;
+    --background: #0F0F0F;
+    --surface: #1A1A1A;
+    --surface-hover: #252525;
+    --text-primary: #E5E5E5;
+    --text-secondary: #A0A0A0;
+    --border-color: #333333;
+    --user-message: #FF8533;
+    --assistant-message: #1A1A1A;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --radius: 8px;
+    --focus-ring: rgba(255, 133, 51, 0.2);
+    --welcome-bg: #1F1609;
+    --welcome-border: #FF8533;
+    --header-bg: #0A0A0A;
+    --code-bg: #252525;
+    --code-text: #FF79C6;
+    --pre-bg: #1E1E1E;
 }
 
 /* Base Styles */
@@ -36,6 +63,7 @@ body {
     overflow: hidden;
     margin: 0;
     padding: 0;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Container - Full Screen */
@@ -57,6 +85,14 @@ header {
     position: sticky;
     top: 0;
     z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.header-left {
+    flex: 1;
 }
 
 header h1 {
@@ -82,12 +118,75 @@ header h1::before {
     font-weight: 400;
 }
 
+/* Theme Toggle Button */
+.theme-toggle {
+    background: var(--surface);
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+    background: var(--surface-hover);
+    border-color: var(--primary-color);
+    transform: rotate(15deg) scale(1.05);
+    box-shadow: var(--shadow-hover);
+}
+
+.theme-toggle:active {
+    transform: rotate(15deg) scale(0.95);
+}
+
+.theme-toggle:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Theme Icons */
+.theme-icon {
+    position: absolute;
+    transition: all 0.3s ease;
+    color: var(--text-primary);
+}
+
+/* Sun icon visible by default (light theme) */
+.sun-icon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+.moon-icon {
+    opacity: 0;
+    transform: rotate(90deg) scale(0);
+}
+
+/* Dark theme - swap icons */
+[data-theme="dark"] .sun-icon {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0);
+}
+
+[data-theme="dark"] .moon-icon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
 /* Main Content Area with Sidebar */
 .main-content {
     flex: 1;
     display: flex;
     overflow: hidden;
     background: var(--background);
+    transition: background-color 0.3s ease;
 }
 
 /* Left Sidebar */
@@ -99,6 +198,7 @@ header h1::before {
     overflow-y: auto;
     flex-shrink: 0;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 /* Custom Scrollbar for Sidebar */
@@ -158,6 +258,7 @@ header h1::before {
     flex-direction: column;
     gap: 1rem;
     background: var(--background);
+    transition: background-color 0.3s ease;
 }
 
 /* Custom Scrollbar */
@@ -208,6 +309,7 @@ header h1::before {
     border-radius: 18px;
     word-wrap: break-word;
     line-height: 1.5;
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .message.user .message-content {
@@ -466,22 +568,24 @@ header h1::before {
 }
 
 .message-content code {
-    background-color: #F0F0F0;
+    background-color: var(--code-bg);
     padding: 0.125rem 0.25rem;
     border-radius: 3px;
     font-family: 'Fira Code', 'Consolas', monospace;
     font-size: 0.875em;
-    color: #D63384;
-    border: 1px solid #E0E0E0;
+    color: var(--code-text);
+    border: 1px solid var(--border-color);
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .message-content pre {
-    background-color: #F8F8F8;
+    background-color: var(--pre-bg);
     padding: 0.75rem;
     border-radius: var(--radius);
     overflow-x: auto;
     margin: 0.5rem 0;
     border: 1px solid var(--border-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .message-content pre code {
@@ -489,6 +593,7 @@ header h1::before {
     padding: 0;
     border: none;
     color: var(--text-primary);
+    transition: color 0.3s ease;
 }
 
 .message-content blockquote {
@@ -531,6 +636,7 @@ header h1::before {
     background: var(--background);
     border-top: 1px solid var(--border-color);
     flex-shrink: 0;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 /* Chat Input */
@@ -542,7 +648,7 @@ header h1::before {
     border-radius: 24px;
     color: var(--text-primary);
     font-size: 0.95rem;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     box-shadow: var(--shadow);
 }
 
@@ -709,7 +815,7 @@ details[open] .suggested-header::before {
     border: 1px solid var(--border-color);
     margin-bottom: 0.75rem;
     box-shadow: var(--shadow);
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
 }
 
 .stat-item:hover {
@@ -824,7 +930,7 @@ details[open] .suggested-header::before {
     color: var(--text-primary);
     font-size: 0.875rem;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     text-align: left;
     width: 100%;
     box-shadow: var(--shadow);
