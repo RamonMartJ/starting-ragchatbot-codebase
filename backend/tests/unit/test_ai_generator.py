@@ -576,5 +576,305 @@ class TestBaseParameters:
         assert AIGenerator.SYSTEM_PROMPT in call2_system
 
 
+# ============================================================================
+# SEQUENTIAL TOOL CALLING TESTS (NEW)
+# ============================================================================
+
+class TestSequentialToolCalling:
+    """Test sequential tool calling capability (up to 2 rounds)."""
+
+    def test_two_sequential_tool_calls(self):
+        """
+        Test that Claude can make 2 sequential tool calls.
+
+        Workflow:
+        1. First API call → tool_use (round 1)
+        2. Execute tools → add results to messages
+        3. Second API call → tool_use (round 2)
+        4. Execute tools → add results to messages
+        5. Third API call → text response (final)
+        6. Verify 3 API calls made and correct response returned
+        """
+        with patch('ai_generator.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+
+            # Round 1: tool_use
+            round1_response = Mock()
+            round1_response.stop_reason = "tool_use"
+            round1_tool = Mock(type="tool_use", name="search_people_in_articles",
+                              id="t1", input={"role": "Periodista"})
+            round1_response.content = [round1_tool]
+
+            # Round 2: tool_use
+            round2_response = Mock()
+            round2_response.stop_reason = "tool_use"
+            round2_tool = Mock(type="tool_use", name="search_news_content",
+                              id="t2", input={"query": "Maribel Vilaplana"})
+            round2_response.content = [round2_tool]
+
+            # Round 3: final answer
+            final_response = Mock()
+            final_response.stop_reason = "end_turn"
+            final_text = Mock()
+            final_text.text = "Combined answer from both searches"
+            final_response.content = [final_text]
+
+            mock_client.messages.create.side_effect = [
+                round1_response, round2_response, final_response
+            ]
+            mock_anthropic.return_value = mock_client
+
+            generator = AIGenerator(api_key="test-key", model="test-model")
+            mock_tool_manager = Mock()
+            mock_tool_manager.execute_tool.side_effect = [
+                "Result from search_people",
+                "Result from search_content"
+            ]
+
+            tools = [
+                {"name": "search_people_in_articles"},
+                {"name": "search_news_content"}
+            ]
+
+            # Execute
+            result = generator.generate_response(
+                query="Complex query requiring multiple searches",
+                tools=tools,
+                tool_manager=mock_tool_manager
+            )
+
+            # Verify
+            assert result == "Combined answer from both searches"
+            assert mock_client.messages.create.call_count == 3
+            assert mock_tool_manager.execute_tool.call_count == 2
+
+    def test_max_rounds_enforced(self):
+        """
+        Test that tool calling stops after 2 rounds.
+
+        Workflow:
+        1. Round 1: tool_use
+        2. Round 2: tool_use
+        3. Force final call without tools
+        4. Verify exactly 3 API calls (2 tool rounds + 1 final)
+        """
+        with patch('ai_generator.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+
+            # Both rounds return tool_use
+            tool_response = Mock()
+            tool_response.stop_reason = "tool_use"
+            tool_block = Mock(type="tool_use", name="tool", id="t", input={})
+            tool_response.content = [tool_block]
+
+            # Final response
+            final_response = Mock()
+            final_response.stop_reason = "end_turn"
+            final_text = Mock()
+            final_text.text = "Final answer after max rounds"
+            final_response.content = [final_text]
+
+            mock_client.messages.create.side_effect = [
+                tool_response,  # Round 1
+                tool_response,  # Round 2
+                final_response  # Forced final
+            ]
+            mock_anthropic.return_value = mock_client
+
+            generator = AIGenerator(api_key="test-key", model="test-model")
+            mock_tool_manager = Mock()
+            mock_tool_manager.execute_tool.return_value = "Tool result"
+
+            # Execute
+            result = generator.generate_response(
+                query="Query",
+                tools=[{"name": "tool"}],
+                tool_manager=mock_tool_manager
+            )
+
+            # Verify: 3 calls total, final call has no tools
+            assert mock_client.messages.create.call_count == 3
+            assert result == "Final answer after max rounds"
+
+            # Check last call had tools=None (forced final)
+            last_call = mock_client.messages.create.call_args_list[2]
+            assert last_call.kwargs.get("tools") is None
+
+    def test_early_termination_no_tool_use(self):
+        """
+        Test early termination when Claude doesn't use tools.
+
+        Workflow:
+        1. Round 1: text response (no tool_use)
+        2. Should terminate immediately
+        3. Verify only 1 API call made
+        """
+        with patch('ai_generator.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+
+            response = Mock()
+            response.stop_reason = "end_turn"
+            text = Mock()
+            text.text = "Direct answer without tools"
+            response.content = [text]
+
+            mock_client.messages.create.return_value = response
+            mock_anthropic.return_value = mock_client
+
+            generator = AIGenerator(api_key="test-key", model="test-model")
+            mock_tool_manager = Mock()
+
+            # Execute
+            result = generator.generate_response(
+                query="Simple question",
+                tools=[{"name": "tool"}],
+                tool_manager=mock_tool_manager
+            )
+
+            # Verify: Only 1 API call, no tool execution
+            assert result == "Direct answer without tools"
+            assert mock_client.messages.create.call_count == 1
+            mock_tool_manager.execute_tool.assert_not_called()
+
+    def test_message_accumulation_across_rounds(self):
+        """
+        Test that messages accumulate correctly across tool rounds.
+
+        Workflow:
+        1. Verify initial messages: [user_query]
+        2. After round 1: [user, assistant_tool, user_results]
+        3. After round 2: [user, asst_tool1, user_res1, asst_tool2, user_res2]
+
+        Note: We capture message state at each call by making copies,
+        since the messages list is mutated in place.
+        """
+        with patch('ai_generator.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+
+            # Storage for captured message states
+            captured_messages = []
+
+            # Round 1
+            r1 = Mock(stop_reason="tool_use")
+            r1.content = [Mock(type="tool_use", name="t1", id="1", input={})]
+
+            # Round 2
+            r2 = Mock(stop_reason="tool_use")
+            r2.content = [Mock(type="tool_use", name="t2", id="2", input={})]
+
+            # Final
+            r3 = Mock(stop_reason="end_turn")
+            r3.content = [Mock(text="Done")]
+
+            def capture_messages(**kwargs):
+                # Capture a COPY of messages at this call
+                captured_messages.append(len(kwargs.get("messages", [])))
+                # Return appropriate response based on call count
+                if len(captured_messages) == 1:
+                    return r1
+                elif len(captured_messages) == 2:
+                    return r2
+                else:
+                    return r3
+
+            mock_client.messages.create.side_effect = capture_messages
+            mock_anthropic.return_value = mock_client
+
+            generator = AIGenerator(api_key="test-key", model="test-model")
+            mock_tool_manager = Mock()
+            mock_tool_manager.execute_tool.return_value = "Result"
+
+            # Execute
+            generator.generate_response(
+                query="Query",
+                tools=[{"name": "t1"}, {"name": "t2"}],
+                tool_manager=mock_tool_manager
+            )
+
+            # Verify message progression using captured states
+            assert captured_messages[0] == 1  # Call 1: Initial user query
+            assert captured_messages[1] == 3  # Call 2: user, asst_tool, user_results
+            assert captured_messages[2] == 5  # Call 3: Full conversation
+
+    def test_tool_execution_error_fail_fast(self):
+        """
+        Test that tool execution errors propagate immediately (fail-fast).
+
+        Workflow:
+        1. Round 1: tool_use
+        2. Tool execution raises exception
+        3. Verify exception is propagated immediately
+        4. Verify no further API calls are made
+        """
+        with patch('ai_generator.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+
+            # Round 1: tool_use
+            tool_response = Mock()
+            tool_response.stop_reason = "tool_use"
+            tool_block = Mock(type="tool_use", name="tool", id="t1", input={})
+            tool_response.content = [tool_block]
+
+            mock_client.messages.create.return_value = tool_response
+            mock_anthropic.return_value = mock_client
+
+            generator = AIGenerator(api_key="test-key", model="test-model")
+            mock_tool_manager = Mock()
+            mock_tool_manager.execute_tool.side_effect = Exception("Tool failed")
+
+            # Execute & Verify: Exception propagated
+            with pytest.raises(Exception, match="Tool failed"):
+                generator.generate_response(
+                    query="Query",
+                    tools=[{"name": "tool"}],
+                    tool_manager=mock_tool_manager
+                )
+
+            # Verify: Only 1 API call (no second round after error)
+            assert mock_client.messages.create.call_count == 1
+
+    def test_adaptive_system_prompt(self):
+        """
+        Test that system prompts adapt based on round number.
+
+        Workflow:
+        1. Execute query that triggers 2 rounds
+        2. Verify round 1 uses "[Ronda 1/2]" prompt
+        3. Verify round 2 uses "[Ronda 2/2 - FINAL]" prompt
+        """
+        with patch('ai_generator.anthropic.Anthropic') as mock_anthropic:
+            mock_client = Mock()
+
+            # Round 1: tool_use
+            r1 = Mock(stop_reason="tool_use")
+            r1.content = [Mock(type="tool_use", name="tool", id="1", input={})]
+
+            # Round 2: text response
+            r2 = Mock(stop_reason="end_turn")
+            r2.content = [Mock(text="Final answer")]
+
+            mock_client.messages.create.side_effect = [r1, r2]
+            mock_anthropic.return_value = mock_client
+
+            generator = AIGenerator(api_key="test-key", model="test-model")
+            mock_tool_manager = Mock()
+            mock_tool_manager.execute_tool.return_value = "Result"
+
+            # Execute
+            generator.generate_response(
+                query="Query",
+                tools=[{"name": "tool"}],
+                tool_manager=mock_tool_manager
+            )
+
+            # Verify: Round 1 system prompt
+            call1_system = mock_client.messages.create.call_args_list[0].kwargs["system"]
+            assert "[Ronda 1/2]" in call1_system
+
+            # Verify: Round 2 system prompt
+            call2_system = mock_client.messages.create.call_args_list[1].kwargs["system"]
+            assert "[Ronda 2/2 - FINAL]" in call2_system
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

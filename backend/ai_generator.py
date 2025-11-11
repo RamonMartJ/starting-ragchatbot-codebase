@@ -7,7 +7,10 @@ logger = get_logger(__name__)
 
 class AIGenerator:
     """Handles interactions with Anthropic's Claude API for generating responses"""
-    
+
+    # Maximum number of sequential tool calling rounds per query
+    MAX_TOOL_ROUNDS = 2
+
     # Static system prompt to avoid rebuilding on each call
     SYSTEM_PROMPT = """Eres un asistente de IA especializado en artículos de noticias con acceso a dos herramientas de búsqueda para información de noticias.
 
@@ -24,7 +27,17 @@ Uso de Herramientas:
   - Para listar personas de un artículo: proporciona article_title
   - Para buscar artículos de una persona: proporciona person_name
   - Para buscar personas por cargo: proporciona role
-- **Una búsqueda por consulta como máximo**
+
+**CAPACIDAD DE BÚSQUEDA MÚLTIPLE**:
+- Puedes realizar hasta 2 búsquedas secuenciales si es necesario
+- Después de recibir resultados, las herramientas permanecen disponibles
+- Usa múltiples búsquedas para:
+  ✅ Combinar información de diferentes fuentes
+  ✅ Profundizar en aspectos mencionados en primeros resultados
+  ✅ Buscar personas → luego buscar artículos específicos sobre ellas
+- NO busques redundantemente la misma información
+- Si los primeros resultados son suficientes, responde directamente
+
 - Sintetiza los resultados de búsqueda en respuestas precisas y basadas en hechos
 - Si la búsqueda no arroja resultados, indícalo claramente sin ofrecer alternativas
 
@@ -66,7 +79,13 @@ Todas las respuestas deben ser:
 4. **Con ejemplos cuando ayuden** - Incluye ejemplos relevantes cuando ayuden a la comprensión
 Proporciona solo la respuesta directa a lo que se preguntó.
 """
-    
+
+    # Round-specific instructions for adaptive prompting
+    ROUND_SPECIFIC_INSTRUCTIONS = {
+        1: "\n\n**[Ronda 1/2]** Usa herramientas si necesitas información específica. Podrás solicitar más búsquedas después de ver resultados.",
+        2: "\n\n**[Ronda 2/2 - FINAL]** Última oportunidad para usar herramientas. Si tienes información suficiente, proporciona tu respuesta final."
+    }
+
     def __init__(self, api_key: str, model: str):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
@@ -77,13 +96,149 @@ Proporciona solo la respuesta directa a lo que se preguntó.
             "temperature": 0,
             "max_tokens": 800
         }
-    
+
+    def _call_api(self, messages: List[Dict[str, Any]], system_content: str,
+                  tools: Optional[List] = None):
+        """
+        Make a single API call to Claude.
+
+        Centralizes API calling logic to avoid duplication in loop.
+
+        Args:
+            messages: Conversation messages so far
+            system_content: System prompt (with history if available)
+            tools: Tool definitions (None to disable tools)
+
+        Returns:
+            Anthropic API response object
+        """
+        api_params = {
+            **self.base_params,
+            "messages": messages,
+            "system": system_content
+        }
+
+        if tools:
+            api_params["tools"] = tools
+            api_params["tool_choice"] = {"type": "auto"}
+
+        logger.debug(f"API call - {len(messages)} messages, tools={'enabled' if tools else 'disabled'}")
+        response = self.client.messages.create(**api_params)
+        logger.debug(f"API response - stop_reason={response.stop_reason}")
+
+        return response
+
+    def _execute_tools_and_update_messages(self, response, messages: List[Dict[str, Any]],
+                                          tool_manager) -> List[Dict[str, Any]]:
+        """
+        Execute all tool calls in response and update message history.
+
+        This method modifies the conversation to include:
+        1. Assistant's tool_use content blocks
+        2. User's tool_result content blocks
+
+        Args:
+            response: API response containing tool_use blocks
+            messages: Current message history
+            tool_manager: Manager to execute tools
+
+        Returns:
+            Updated messages list with tool execution results
+
+        Raises:
+            Exception: If tool execution fails (fail-fast strategy)
+        """
+        # Add assistant's tool use to messages
+        messages.append({"role": "assistant", "content": response.content})
+
+        # Execute all tools and collect results
+        tool_results = []
+        for content_block in response.content:
+            if content_block.type == "tool_use":
+                logger.info(f"Executing tool: {content_block.name}")
+                logger.debug(f"Tool input: {content_block.input}")
+
+                try:
+                    result = tool_manager.execute_tool(
+                        content_block.name,
+                        **content_block.input
+                    )
+                    logger.debug(f"Tool result length: {len(result)} chars")
+
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": content_block.id,
+                        "content": result
+                    })
+                except Exception as e:
+                    logger.error(f"Tool execution failed: {e}", exc_info=True)
+                    # Fail-fast: propagate exception immediately
+                    raise
+
+        # Add tool results as user message
+        if tool_results:
+            messages.append({"role": "user", "content": tool_results})
+
+        return messages
+
+    def _extract_text_response(self, response) -> str:
+        """
+        Extract text content from API response.
+
+        Handles responses that may have mixed content blocks.
+
+        Args:
+            response: Anthropic API response
+
+        Returns:
+            Text content from response
+        """
+        for block in response.content:
+            if hasattr(block, 'text'):
+                return block.text
+
+        logger.warning("No text content found in response")
+        return ""
+
+    def _build_system_prompt(self, conversation_history: Optional[str],
+                            round_number: int) -> str:
+        """
+        Build system content with optional conversation history and round-specific instructions.
+
+        Args:
+            conversation_history: Previous conversation context
+            round_number: Current tool execution round (1 or 2)
+
+        Returns:
+            Complete system prompt string with adaptive instructions
+        """
+        # Start with base prompt
+        prompt = self.SYSTEM_PROMPT
+
+        # Add round-specific instructions if available
+        if round_number in self.ROUND_SPECIFIC_INSTRUCTIONS:
+            prompt += self.ROUND_SPECIFIC_INSTRUCTIONS[round_number]
+
+        # Add conversation history if provided
+        if conversation_history:
+            prompt = f"{prompt}\n\nPrevious conversation:\n{conversation_history}"
+
+        return prompt
+
     def generate_response(self, query: str,
                          conversation_history: Optional[str] = None,
                          tools: Optional[List] = None,
                          tool_manager=None) -> str:
         """
-        Generate AI response with optional tool usage and conversation context.
+        Generate AI response with up to 2 sequential tool calling rounds.
+
+        Supports multi-round tool calling where Claude can use tools, see results,
+        and decide to use tools again or provide a final answer.
+
+        Architecture:
+        - Round 1: Initial query → Claude (with tools) → potential tool_use
+        - Round 2: Tool results → Claude (with tools) → potential tool_use
+        - Terminate: No tool_use, max rounds reached, or error
 
         Args:
             query: The user's question or request
@@ -97,99 +252,48 @@ Proporciona solo la respuesta directa a lo que se preguntó.
         try:
             logger.debug(f"Generating response for query with {len(tools or [])} tools")
 
-            # Build system content efficiently - avoid string ops when possible
-            system_content = (
-                f"{self.SYSTEM_PROMPT}\n\nPrevious conversation:\n{conversation_history}"
-                if conversation_history
-                else self.SYSTEM_PROMPT
-            )
+            # Initialize conversation state for this query
+            current_round = 0
+            messages = [{"role": "user", "content": query}]
 
-            # Prepare API call parameters efficiently
-            api_params = {
-                **self.base_params,
-                "messages": [{"role": "user", "content": query}],
-                "system": system_content
-            }
+            # Main loop: Up to MAX_TOOL_ROUNDS iterations
+            while current_round < self.MAX_TOOL_ROUNDS:
+                current_round += 1
+                logger.info(f"Starting tool round {current_round}/{self.MAX_TOOL_ROUNDS}")
 
-            # Add tools if available
-            if tools:
-                api_params["tools"] = tools
-                api_params["tool_choice"] = {"type": "auto"}
+                # Build adaptive system prompt for this round
+                system_content = self._build_system_prompt(conversation_history, current_round)
 
-            # Get response from Claude
-            logger.debug(f"Calling Anthropic API - model={self.model}, max_tokens={api_params['max_tokens']}")
-            response = self.client.messages.create(**api_params)
-            logger.debug(f"Anthropic response - stop_reason={response.stop_reason}")
+                # Make API call with tools available
+                response = self._call_api(messages, system_content, tools)
 
-            # Handle tool execution if needed
-            if response.stop_reason == "tool_use" and tool_manager:
-                logger.info("Tool use requested by Claude")
-                return self._handle_tool_execution(response, api_params, tool_manager)
+                # Termination condition 1: No tool use requested
+                if response.stop_reason != "tool_use":
+                    logger.info("Claude provided direct answer - terminating tool loop")
+                    return self._extract_text_response(response)
 
-            # Return direct response
-            logger.debug("Returning direct response (no tools used)")
-            return response.content[0].text
+                # Termination condition 2: Tool use but no tool_manager
+                if not tool_manager:
+                    logger.warning("Tool use requested but no tool_manager provided")
+                    return self._extract_text_response(response)
+
+                # Execute tools and accumulate conversation
+                logger.info(f"Tool use requested in round {current_round}")
+                messages = self._execute_tools_and_update_messages(
+                    response, messages, tool_manager
+                )
+
+                # Check if we've reached max rounds
+                if current_round >= self.MAX_TOOL_ROUNDS:
+                    logger.info("Max tool rounds reached - making final API call")
+                    system_content = self._build_system_prompt(conversation_history, current_round)
+                    final_response = self._call_api(messages, system_content, tools=None)
+                    return self._extract_text_response(final_response)
+
+            # Safeguard (should never reach here, but defensive programming)
+            logger.warning("Unexpectedly exited tool loop")
+            return "Unable to generate response after maximum tool rounds."
 
         except Exception as e:
             logger.error(f"Error generating response: {e}", exc_info=True)
-            raise
-    
-    def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
-        """
-        Handle execution of tool calls and get follow-up response.
-
-        Args:
-            initial_response: The response containing tool use requests
-            base_params: Base API parameters
-            tool_manager: Manager to execute tools
-
-        Returns:
-            Final response text after tool execution
-        """
-        try:
-            # Start with existing messages
-            messages = base_params["messages"].copy()
-
-            # Add AI's tool use response
-            messages.append({"role": "assistant", "content": initial_response.content})
-
-            # Execute all tool calls and collect results
-            tool_results = []
-            for content_block in initial_response.content:
-                if content_block.type == "tool_use":
-                    logger.info(f"Tool use requested: {content_block.name}")
-                    logger.debug(f"Executing tool {content_block.name} with input: {content_block.input}")
-
-                    tool_result = tool_manager.execute_tool(
-                        content_block.name,
-                        **content_block.input
-                    )
-
-                    logger.debug(f"Tool result length: {len(tool_result)} chars")
-
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": content_block.id,
-                        "content": tool_result
-                    })
-
-            # Add tool results as single message
-            if tool_results:
-                messages.append({"role": "user", "content": tool_results})
-
-            # Prepare final API call without tools
-            final_params = {
-                **self.base_params,
-                "messages": messages,
-                "system": base_params["system"]
-            }
-
-            # Get final response
-            logger.debug("Calling Anthropic API with tool results")
-            final_response = self.client.messages.create(**final_params)
-            logger.debug(f"Final response received - stop_reason={final_response.stop_reason}")
-            return final_response.content[0].text
-
-        except Exception as e:
-            logger.error(f"Error handling tool execution: {e}", exc_info=True)
             raise
