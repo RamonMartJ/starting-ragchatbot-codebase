@@ -66,14 +66,22 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 /* Container - Full Screen */
 .container {
     height: 100vh;
-    width: 100vw;
+    width: 100%;
     display: flex;
     flex-direction: column;
     margin: 0;
     padding: 0;
+}
+
+body {
+    overflow-x: hidden;
 }
 
 /* Header - Antena3 Style */
@@ -96,7 +104,7 @@ header {
 }
 
 header h1 {
-    font-size: 1.75rem;
+    font-size: clamp(1.25rem, 3vw, 1.75rem);
     font-weight: 700;
     color: #FFFFFF;
     margin: 0;
@@ -108,11 +116,11 @@ header h1 {
 header h1::before {
     content: "▶";
     color: var(--primary-color);
-    font-size: 1.5rem;
+    font-size: clamp(1.15rem, 2.5vw, 1.5rem);
 }
 
 .subtitle {
-    font-size: 0.9rem;
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
     color: #999999;
     margin-top: 0.25rem;
     font-weight: 400;
@@ -180,6 +188,69 @@ header h1::before {
     transform: rotate(0deg) scale(1);
 }
 
+/* Hamburger Menu Button (Mobile Only) */
+.hamburger-toggle {
+    display: none; /* Hidden by default on desktop */
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+    width: 44px;
+    height: 44px;
+    position: relative;
+    z-index: 1001;
+    flex-shrink: 0;
+    margin-right: 0.75rem;
+}
+
+.hamburger-line {
+    display: block;
+    width: 24px;
+    height: 3px;
+    background-color: #FFFFFF;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
+
+/* Hamburger animation when active */
+.hamburger-active .hamburger-line:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.hamburger-active .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger-active .hamburger-line:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Sidebar overlay for mobile */
+.sidebar-overlay-active::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 /* Main Content Area with Sidebar */
 .main-content {
     flex: 1;
@@ -198,7 +269,7 @@ header h1::before {
     overflow-y: auto;
     flex-shrink: 0;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
-    transition: background-color 0.3s ease, border-color 0.3s ease;
+    transition: all 0.3s ease;
 }
 
 /* Custom Scrollbar for Sidebar */
@@ -245,8 +316,9 @@ header h1::before {
     background: var(--background);
     overflow: hidden;
     width: 100%;
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0;
+    transition: max-width 0.3s ease;
 }
 
 /* Chat Messages */
@@ -309,6 +381,7 @@ header h1::before {
     border-radius: 18px;
     word-wrap: break-word;
     line-height: 1.5;
+    font-size: clamp(0.9rem, 1.2vw, 0.95rem);
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
@@ -648,7 +721,7 @@ header h1::before {
     border-radius: 24px;
     color: var(--text-primary);
     font-size: 0.95rem;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--shadow);
 }
 
@@ -673,7 +746,7 @@ header h1::before {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     min-width: 52px;
     box-shadow: var(--shadow);
     font-weight: 600;
@@ -702,16 +775,17 @@ header h1::before {
 /* Loading Animation */
 .loading {
     display: inline-flex;
-    gap: 4px;
+    gap: 5px;
     padding: 0.75rem 1.25rem;
 }
 
 .loading span {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     background: var(--primary-color);
     border-radius: 50%;
     animation: bounce 1.4s infinite ease-in-out both;
+    transition: background-color 0.3s ease;
 }
 
 .loading span:nth-child(1) {
@@ -754,7 +828,7 @@ header h1::before {
 /* Sidebar Headers */
 .stats-header,
 .suggested-header {
-    font-size: 0.875rem;
+    font-size: clamp(0.8rem, 1vw, 0.875rem);
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
@@ -1004,28 +1078,136 @@ details[open] .suggested-header::before {
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
-    .main-content {
-        flex-direction: column;
+
+/* 480px Breakpoint - Ultra-Small Phones (iPhone SE, Small Android) */
+@media (max-width: 480px) {
+    /* Theme toggle - smaller on very small screens */
+    .theme-toggle {
+        width: 40px;
+        height: 40px;
     }
-    
+
+    .theme-icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Message bubbles - wider on small screens */
+    .message {
+        max-width: 95%;
+    }
+
+    /* Chat input - reduced padding */
+    #chatInput {
+        padding: 0.65rem 0.85rem;
+        font-size: 0.9rem;
+    }
+
+    /* Input container - reduced gap */
+    .chat-input-container {
+        gap: 0.35rem;
+        padding: 1rem 0.75rem;
+    }
+
+    /* Send button - smaller */
+    #sendButton {
+        padding: 0.65rem 1rem;
+        min-width: 40px;
+    }
+
+    #sendButton svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Source badges - smaller */
+    .source-link,
+    .source-text {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.7rem;
+    }
+
+    /* Citation tooltips - constrained width with wrapping */
+    .citation-link::after {
+        max-width: 250px;
+        white-space: normal;
+        word-wrap: break-word;
+    }
+
+    /* Suggested items - adequate touch targets */
+    .suggested-item {
+        padding: 0.75rem 0.85rem;
+        font-size: 0.8rem;
+    }
+
+    /* Article title items */
+    .article-title-item {
+        font-size: 0.8rem;
+        line-height: 1.3;
+    }
+
+    /* Hamburger button - slightly smaller */
+    .hamburger-toggle {
+        width: 40px;
+        height: 40px;
+    }
+
+    .hamburger-line {
+        width: 22px;
+    }
+
+    /* Header padding */
+    header {
+        padding: 1rem 0.75rem;
+    }
+
+    /* Chat messages padding */
+    .chat-messages {
+        padding: 1rem 0.75rem;
+    }
+}
+
+/* 768px Breakpoint - Tablets and Below */
+@media (max-width: 768px) {
+    /* Show hamburger menu */
+    .hamburger-toggle {
+        display: flex;
+    }
+
+    .main-content {
+        flex-direction: row;
+        position: relative;
+    }
+
+    /* Sidebar - Collapsible slide-in from left */
     .sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
-        padding: 1rem;
-        order: 2;
-        max-height: 40vh;
+        position: fixed;
+        top: 0;
+        left: -100%;
+        width: 280px;
+        max-width: 85vw;
+        height: 100vh;
+        border-right: 2px solid var(--border-color);
+        border-bottom: none;
+        padding: 5rem 1.5rem 1.5rem;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        box-shadow: 2px 0 16px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Sidebar open state */
+    .sidebar-open {
+        left: 0;
     }
     
     .sidebar::-webkit-scrollbar {
         width: 8px;
     }
-    
+
     .sidebar::-webkit-scrollbar-track {
         background: var(--surface);
     }
-    
+
     .sidebar::-webkit-scrollbar-thumb {
         background: var(--primary-color);
         border-radius: 4px;
@@ -1034,54 +1216,91 @@ details[open] .suggested-header::before {
     .sidebar::-webkit-scrollbar-thumb:hover {
         background: var(--primary-hover);
     }
-    
+
     .chat-main {
-        order: 1;
+        flex: 1;
+        width: 100%;
     }
-    
-    header {
-        padding: 1rem;
-    }
-    
-    header h1 {
-        font-size: 1.5rem;
-    }
-    
+
     .chat-messages {
-        padding: 1rem;
+        padding: 1.5rem 1rem;
     }
-    
+
     .message {
         max-width: 90%;
     }
-    
+
     .chat-input-container {
-        padding: 1rem;
+        padding: 1.25rem 1rem;
         gap: 0.5rem;
     }
-    
+
     #chatInput {
         padding: 0.75rem 1rem;
-        font-size: 0.9rem;
     }
-    
+
     #sendButton {
         padding: 0.75rem 1rem;
         min-width: 48px;
     }
-    
-    .stat-value {
-        font-size: 1.25rem;
-    }
-    
+
+    /* Ensure touch targets are adequate */
     .suggested-item {
-        padding: 0.5rem 0.75rem;
-        font-size: 0.8rem;
+        padding: 0.75rem 0.85rem;
+        min-height: 44px;
+    }
+
+    .new-chat-button {
+        min-height: 44px;
     }
 }
 
-@media (max-width: 1024px) {
+/* 1024px Breakpoint - Small Laptops */
+@media (min-width: 769px) and (max-width: 1024px) {
     .sidebar {
-        width: 280px;
+        width: 260px;
+    }
+
+    header {
+        padding: 1rem 1.5rem;
+    }
+
+    .chat-container {
+        max-width: 1000px;
+    }
+}
+
+/* 1440px+ Breakpoint - Ultra-Wide Displays */
+@media (min-width: 1440px) {
+    .chat-container {
+        max-width: 1400px;
+    }
+
+    .sidebar {
+        min-width: 320px;
+        max-width: 380px;
+        width: 20vw;
+    }
+
+    header {
+        padding: 1.5rem 3rem;
+    }
+
+    .chat-messages {
+        padding: 2.5rem;
+    }
+
+    .chat-input-container {
+        padding: 1.75rem 2.5rem;
+    }
+
+    /* Larger font sizes for ultra-wide screens */
+    .message-content {
+        font-size: 1rem;
+    }
+
+    /* Better spacing for source badges */
+    .sources-content {
+        gap: 0.5rem;
     }
 }

@@ -7,7 +7,7 @@ let isLoading = false; // Track if a query is currently being processed
 let originalButtonHTML = ''; // Store original button HTML with icon
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalArticles, articleTitles, newChatButton, themeToggle;
+let chatMessages, chatInput, sendButton, totalArticles, articleTitles, newChatButton, themeToggle, hamburgerToggle, sidebar;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     articleTitles = document.getElementById('articleTitles');
     newChatButton = document.getElementById('newChatButton');
     themeToggle = document.getElementById('themeToggle');
+    hamburgerToggle = document.getElementById('hamburgerToggle');
+    sidebar = document.querySelector('.sidebar');
 
     // Capture original button HTML once (with SVG icon)
     originalButtonHTML = sendButton.innerHTML;
@@ -55,12 +57,28 @@ function setupEventListeners() {
         }
     });
 
-    // Suggested questions
+    // Hamburger menu toggle for mobile sidebar
+    hamburgerToggle.addEventListener('click', toggleSidebar);
+
+    // Close sidebar when clicking outside on mobile
+    document.addEventListener('click', (e) => {
+        if (window.innerWidth <= 768 && sidebar.classList.contains('sidebar-open')) {
+            if (!sidebar.contains(e.target) && !hamburgerToggle.contains(e.target)) {
+                closeSidebar();
+            }
+        }
+    });
+
+    // Suggested questions - also close sidebar on mobile when clicked
     document.querySelectorAll('.suggested-item').forEach(button => {
         button.addEventListener('click', (e) => {
             const question = e.target.getAttribute('data-question');
             chatInput.value = question;
             sendMessage();
+            // Close sidebar on mobile after selecting a question
+            if (window.innerWidth <= 768) {
+                closeSidebar();
+            }
         });
     });
 }
@@ -347,4 +365,35 @@ function setTheme(theme) {
     localStorage.setItem('theme', theme);
 
     console.log(`Theme set to: ${theme}`);
+}
+
+// Sidebar Toggle Functions (Mobile)
+
+/**
+ * Toggle sidebar visibility on mobile devices
+ */
+function toggleSidebar() {
+    if (sidebar.classList.contains('sidebar-open')) {
+        closeSidebar();
+    } else {
+        openSidebar();
+    }
+}
+
+/**
+ * Open sidebar on mobile
+ */
+function openSidebar() {
+    sidebar.classList.add('sidebar-open');
+    hamburgerToggle.classList.add('hamburger-active');
+    document.body.classList.add('sidebar-overlay-active');
+}
+
+/**
+ * Close sidebar on mobile
+ */
+function closeSidebar() {
+    sidebar.classList.remove('sidebar-open');
+    hamburgerToggle.classList.remove('hamburger-active');
+    document.body.classList.remove('sidebar-overlay-active');
 }
