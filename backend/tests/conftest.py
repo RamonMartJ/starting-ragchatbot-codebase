@@ -12,7 +12,8 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+from fastapi.testclient import TestClient
 
 
 # ============================================================================
@@ -274,3 +275,116 @@ def cleanup_temp_chroma():
             shutil.rmtree(chroma_dir)
         except:
             pass
+
+
+# ============================================================================
+# API TESTING FIXTURES
+# ============================================================================
+
+@pytest.fixture
+def test_app():
+    """
+    Provide a FastAPI test app instance for API endpoint testing.
+
+    Creates a minimal FastAPI app with the same endpoints as the main app
+    but without static file mounting to avoid dependency on frontend files
+    during testing.
+
+    Workflow:
+    1. Creates FastAPI app without lifespan context (no document loading)
+    2. Adds same middleware configuration as main app
+    3. Registers same API endpoints (/api/query, /api/articles)
+    4. Uses mocked RAG system to avoid real API calls
+
+    Returns:
+        FastAPI app instance ready for TestClient
+    """
+    from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.middleware.trustedhost import TrustedHostMiddleware
+    from models import QueryRequest, QueryResponse, ArticleStats
+
+    # Create test app without lifespan to avoid document loading
+    app = FastAPI(title="Test RAG System API")
+
+    # Add same middleware as main app
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+
+    # Mock RAG system to avoid real database/API calls
+    mock_rag = Mock()
+    mock_rag.session_manager.create_session = Mock(return_value="test-session-123")
+    mock_rag.query = Mock(return_value=("Test answer", [{"text": "Test source", "url": "http://test.com", "index": 1}]))
+    mock_rag.get_article_analytics = Mock(return_value={"total_articles": 5, "article_titles": ["Article 1", "Article 2"]})
+
+    # Define same endpoints as main app
+    @app.post("/api/query", response_model=QueryResponse)
+    async def query_documents(request: QueryRequest):
+        """Test endpoint for /api/query"""
+        try:
+            session_id = request.session_id or mock_rag.session_manager.create_session()
+            answer, sources = mock_rag.query(request.query, session_id)
+            return QueryResponse(answer=answer, sources=sources, session_id=session_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/articles", response_model=ArticleStats)
+    async def get_article_stats():
+        """Test endpoint for /api/articles"""
+        try:
+            analytics = mock_rag.get_article_analytics()
+            return ArticleStats(
+                total_articles=analytics["total_articles"],
+                article_titles=analytics["article_titles"]
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # Store mock_rag on app for access in tests
+    app.state.mock_rag = mock_rag
+
+    return app
+
+
+@pytest.fixture
+def test_client(test_app):
+    """
+    Provide a TestClient for making HTTP requests to the test API.
+
+    TestClient is a synchronous client based on httpx that allows testing
+    FastAPI endpoints without running an actual server.
+
+    Usage in tests:
+        def test_endpoint(test_client):
+            response = test_client.post("/api/query", json={...})
+            assert response.status_code == 200
+
+    Returns:
+        TestClient instance configured with test_app
+    """
+    return TestClient(test_app)
+
+
+@pytest.fixture
+def mock_rag_system(test_app):
+    """
+    Provide access to the mock RAG system for customizing behavior in tests.
+
+    Allows tests to configure specific return values for different test cases.
+
+    Usage in tests:
+        def test_custom_response(test_client, mock_rag_system):
+            mock_rag_system.query.return_value = ("Custom answer", [])
+            response = test_client.post("/api/query", json={...})
+
+    Returns:
+        Mock RAG system instance
+    """
+    return test_app.state.mock_rag
