@@ -3,7 +3,7 @@ name = "starting-codebase"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "chromadb==1.0.15",
     "anthropic==0.58.2",
@@ -20,6 +20,7 @@ dev = [
     "black>=24.0.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "httpx>=0.27.0",
 ]
 
 [tool.black]
@@ -92,3 +93,25 @@ module = [
     "sentence_transformers.*",
 ]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# Pytest configuration for cleaner test execution
+testpaths = ["backend/tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",                          # Verbose output
+    "--strict-markers",            # Strict marker checking
+    "--tb=short",                  # Short traceback format
+    "--disable-warnings",          # Disable warnings for cleaner output
+    "-ra",                         # Show summary of all test outcomes
+]
+markers = [
+    "unit: Unit tests for individual components",
+    "integration: Integration tests for component interactions",
+    "api: API endpoint tests",
+    "slow: Tests that take significant time to run",
+]
+# Set working directory to backend for imports
+pythonpath = ["backend"]
