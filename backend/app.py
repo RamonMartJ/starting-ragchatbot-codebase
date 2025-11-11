@@ -1,5 +1,4 @@
 import warnings
-warnings.filterwarnings("ignore", message="resource_tracker: There appear to be.*")
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
@@ -15,6 +14,8 @@ from logger import get_logger
 
 # Initialize logger for this module
 logger = get_logger(__name__)
+
+warnings.filterwarnings("ignore", message="resource_tracker: There appear to be.*")
 
 # ============================================================================
 # RAG SYSTEM INITIALIZATION
